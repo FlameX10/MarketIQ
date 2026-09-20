@@ -406,7 +406,7 @@ exports.handler = async (event, context) => {
     let aiContent = null;
     const keyToUse = api_key || process.env.OPENROUTER_API_KEY;
 
-    if (useApi !== false && keyToUse) {
+    if (use_api !== false && keyToUse) {
       try {
         const prompt = `Generate market report content for ${marketInput.market_name_title}.\nReturn ONLY valid JSON format.`;
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
