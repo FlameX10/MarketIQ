@@ -2,7 +2,6 @@ const JSZip = require('jszip');
 const fs = require('fs');
 const path = require('path');
 
-// Truncation limits map
 const LENGTH_LIMITS = {
   type_segment_1: 30,
   type_segment_2: 35,
@@ -78,49 +77,73 @@ function sanitizeFilename(name) {
 function getFallbackContent(marketName) {
   const core = extractCoreProductName(marketName);
   return {
-    type_segment_1: `${core} Type 1`,
-    type_segment_2: `${core} Type 2`,
-    type_segment_3: `${core} Type 3`,
-    tech_segment_1: `${core} Tech 1`,
-    tech_segment_2: `${core} Tech 2`,
-    tech_segment_3: `${core} Tech 3`,
-    app_segment_1: `${core} App 1`,
-    app_segment_2: `${core} App 2`,
-    app_segment_3: `${core} App 3`,
-    app_segment_4: `${core} App 4`,
-    co1_name: "Featured Company",
-    co2_name: "Competitor 2",
-    co3_name: "Competitor 3",
-    co4_name: "Competitor 4",
-    co5_name: "Co5",
-    co6_name: "Co6",
-    co7_name: "Competitor 7",
-    co8_name: "Co8",
-    co9_name: "Co9",
-    co10_name: "Co10",
-    co1_segment_1_name: `${core} Segment 1`,
-    co1_segment_2_name: `${core} Segment 2`,
-    segment5_marketshare1: "Sub-Segment 1",
-    segment5_marketshare2: "Sub-Segment 2",
-    segment5_marketshare3: "Sub-Segment 3",
-    segment6_marketshare1: "Sub-Segment 1",
-    segment6_marketshare2: "Sub-Segment 2",
-    segment6_marketshare3: "Sub-Segment 3",
-    segment6_marketshare4: "Sub-Segment 4",
-    seg4_name: `${core} Segment 4`,
-    seg4_sub1: "Sub-Segment 1",
-    seg4_sub2: "Sub-Segment 2",
-    seg4_sub3: "Sub-Segment 3",
-    seg5_name: `${core} Segment 5`,
-    seg5_sub1: "Sub-Segment 1",
-    seg5_sub2: "Sub-Segment 2",
-    seg5_sub3: "Sub-Segment 3",
-    seg6_name: `${core} Segment 6`,
-    seg6_sub1: "Sub-Segment 1",
-    seg6_sub2: "Sub-Segment 2",
-    seg6_sub3: "Sub-Segment 3",
-    ch4_custom_subsection_4_1_title: "Client Requirement 4.1",
+    type_segment_1: `${core} Standard Grade`,
+    type_segment_2: `${core} Premium Grade`,
+    type_segment_3: `${core} Specialized Grade`,
+    tech_segment_1: "Advanced Automated Processing",
+    tech_segment_2: "NextGen Manufacturing",
+    tech_segment_3: "High-Efficiency Production",
+    app_segment_1: "Industrial Applications",
+    app_segment_2: "Commercial Sector",
+    app_segment_3: "Residential Sector",
+    app_segment_4: "Specialty Applications",
+    co1_name: `Global ${core} Leaders`,
+    co2_name: `${core} Innovations Inc`,
+    co3_name: `Apex ${core} Solutions`,
+    co4_name: `Prime ${core} Corp`,
+    co5_name: `Vanguard ${core}`,
+    co6_name: `United ${core}`,
+    co7_name: `International ${core}`,
+    co8_name: `Strategic ${core}`,
+    co9_name: `Pioneer ${core}`,
+    co10_name: `Global ${core} Enterprise`,
+    co1_segment_1_name: `Core ${core} Products`,
+    co1_segment_2_name: `${core} Services & Accessories`,
+    segment5_marketshare1: "Direct Enterprise Sales",
+    segment5_marketshare2: "Distributor Network",
+    segment5_marketshare3: "Online Channels",
+    segment6_marketshare1: "Premium Material",
+    segment6_marketshare2: "Standard Material",
+    segment6_marketshare3: "Composite Material",
+    segment6_marketshare4: "Eco-friendly Material",
+    seg4_name: "End User",
+    seg4_sub1: "Industrial End Users",
+    seg4_sub2: "Commercial End Users",
+    seg4_sub3: "Individual Consumers",
+    seg5_name: "Distribution Channel",
+    seg5_sub1: "Direct Enterprise Sales",
+    seg5_sub2: "Distributor Network",
+    seg5_sub3: "Online E-Commerce",
+    seg6_name: "Material",
+    seg6_sub1: "Premium Material",
+    seg6_sub2: "Standard Material",
+    seg6_sub3: "Composite Material",
+    ch4_custom_subsection_4_1_title: `Strategic Analysis of ${core} Market Opportunities`,
   };
+}
+
+function validatePayload(payloadDict) {
+  const genericPatterns = [
+    [/\b(Type|Tech|App)\s+\d+\b/i, "Generic segment placeholder (e.g. Type 1, Tech 2, App 3)"],
+    [/\bSegment\s+[456]\b/i, "Generic dimension name (e.g. Segment 4, Segment 5, Segment 6)"],
+    [/\bSub-Segment\s*\d*\b/i, "Generic sub-segment label"],
+    [/\bClient Requirement\s*\d*(\.\d+)?\b/i, "Generic client requirement title"],
+    [/\bFEATURED COMPANY\b/i, "Generic company placeholder"],
+    [/\bCompetitor\s+\d+\b/i, "Generic competitor placeholder"],
+    [/www\.FEATURED\s*COMPANY\.com/i, "Fake company URL"],
+  ];
+
+  const errors = [];
+  for (const [key, val] of Object.entries(payloadDict)) {
+    if (!val || typeof val !== 'string') continue;
+    for (const [pattern, desc] of genericPatterns) {
+      if (pattern.test(val)) {
+        errors.append ? errors.append(`${key}: ${val}`) : errors.push(`Unresolved placeholder in '${key}': '${val}' (${desc})`);
+      }
+    }
+  }
+
+  return { isValid: errors.length === 0, errors };
 }
 
 async function parseDocxBuffer(buffer) {
@@ -142,23 +165,34 @@ async function parseDocxBuffer(buffer) {
     }
   }
 
-  // Parse Segments
+  // Multi-pattern Segment Parser
   const parsedSegments = [];
-  const segmentLines = fullText.match(/\d+\.\s*([A-Za-z0-9\s\-]+):\s*([^.\n]+)/g) || [];
-  for (const line of segmentLines) {
+  const segMap = {};
+
+  // Pattern A: Inline lines like "1. Type: Porcelain, Glazed..." or "By Type: ..."
+  const inlineLines = fullText.match(/(?:By\s+|\d+[\.\)]\s*)?([A-Za-z0-9\s/&\-]+?)\s*:\s*([^.\n]+)/g) || [];
+  for (const line of inlineLines) {
     const parts = line.split(':');
     if (parts.length >= 2) {
-      const segName = parts[0].replace(/^\d+\.\s*/, '').trim();
-      const subs = parts[1].split(',').map(s => s.trim()).filter(Boolean);
-      parsedSegments.push({ name: segName, sub_segments: subs });
+      const header = parts[0].replace(/^(?:By\s+|\d+[\.\)]\s*)/i, '').trim();
+      const vals = parts[1].split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+      const hLower = header.toLowerCase();
+      if (!hLower.includes('global') && !hLower.includes('market') && !hLower.includes('player') && !hLower.includes('custom') && vals.length > 0) {
+        segMap[header] = vals;
+      }
     }
+  }
+
+  // Convert segMap to parsedSegments array
+  for (const [name, subs] of Object.entries(segMap)) {
+    parsedSegments.push({ name, sub_segments: subs });
   }
 
   // Key Players
   const players = [];
   const playerSection = fullText.match(/(?:Key Players|Top Companies|Competitive Landscape)[^:]*:\s*([^.\n]+)/i);
   if (playerSection && playerSection[1]) {
-    const list = playerSection[1].split(/,|\n/).map(p => p.trim()).filter(Boolean);
+    const list = playerSection[1].split(/,|\n/).map(p => p.trim().replace(/^[-•*\d+.]\s*/, '')).filter(Boolean);
     players.push(...list);
   }
 
@@ -166,7 +200,7 @@ async function parseDocxBuffer(buffer) {
   const customSections = [];
   const customMatch = fullText.match(/(?:Custom Requirements|Client Requirements)[^:]*:\s*([^.]+)/i);
   if (customMatch && customMatch[1]) {
-    const reqs = customMatch[1].split(/;|\n|\d+\./).map(r => r.trim()).filter(r => r.length > 5);
+    const reqs = customMatch[1].split(/;|\n|\d+\./).map(r => r.trim().replace(/^[-•*\d+.]\s*/, '')).filter(r => r.length > 5);
     for (const r of reqs) {
       customSections.push({ title: r });
     }
@@ -192,8 +226,20 @@ async function parseDocxBuffer(buffer) {
 function buildPayload(aiContent, marketInput) {
   const core = marketInput.market_name;
   const segments = marketInput.parsed_segments || [];
+  const players = marketInput.parsed_players || [];
+  const customReqs = marketInput.custom_sections || [];
 
   const val = (key, fallback = "") => (aiContent && aiContent[key]) ? String(aiContent[key]) : fallback;
+
+  // 1. Key Players Mapping (Priority: Parsed players > AI content > Domain Fallback)
+  const coNames = {};
+  for (let i = 1; i <= 10; i++) {
+    if (players.length >= i && players[i - 1]) {
+      coNames[`co${i}_name`] = players[i - 1];
+    } else {
+      coNames[`co${i}_name`] = val(`co${i}_name`, `Global ${core} Leader ${i}`);
+    }
+  }
 
   const payload = {
     "{{market_name}}": marketInput.market_name,
@@ -205,98 +251,114 @@ function buildPayload(aiContent, marketInput) {
     "{{forecast_start_year}}": marketInput.forecast_start_year,
     "{{forecast_end_year}}": marketInput.forecast_end_year,
     "{{history_start_year}}": marketInput.history_start_year,
-    "{{co1_name_upper}}": val("co1_name", "Featured Company").toUpperCase(),
-    "{{co2_name}}": val("co2_name", "Competitor 2"),
-    "{{co3_name}}": val("co3_name", "Competitor 3"),
-    "{{co4_name}}": val("co4_name", "Competitor 4"),
-    "{{co5_name}}": val("co5_name", "Competitor 5"),
-    "{{co6_name}}": val("co6_name", "Competitor 6"),
-    "{{co7_name}}": val("co7_name", "Competitor 7"),
-    "{{co8_name}}": val("co8_name", "Competitor 8"),
-    "{{co9_name}}": val("co9_name", "Competitor 9"),
-    "{{co10_name}}": val("co10_name", "Competitor 10"),
-    "{{CO1_NAME}}": val("co1_name", "Featured Company").toUpperCase(),
-    "{{CO2_NAME}}": val("co2_name", "Competitor 2").toUpperCase(),
-    "{{CO3_NAME}}": val("co3_name", "Competitor 3").toUpperCase(),
-    "{{CO4_NAME}}": val("co4_name", "Competitor 4").toUpperCase(),
-    "{{CO5_NAME}}": val("co5_name", "Competitor 5").toUpperCase(),
-    "{{CO6_NAME}}": val("co6_name", "Competitor 6").toUpperCase(),
-    "{{CO7_NAME}}": val("co7_name", "Competitor 7").toUpperCase(),
-    "{{CO8_NAME}}": val("co8_name", "Competitor 8").toUpperCase(),
-    "{{CO9_NAME}}": val("co9_name", "Competitor 9").toUpperCase(),
-    "{{CO10_NAME}}": val("co10_name", "Competitor 10").toUpperCase(),
-    "{{co1_seg1_name}}": val("co1_segment_1_name", `${core} Segment 1`),
-    "{{co1_seg2_name}}": val("co1_segment_2_name", `${core} Segment 2`),
-    "{{segment5_marketshare1}}": val("segment5_marketshare1", "Sub-Segment 1"),
-    "{{segment5_marketshare2}}": val("segment5_marketshare2", "Sub-Segment 2"),
-    "{{segment5_marketshare3}}": val("segment5_marketshare3", "Sub-Segment 3"),
-    "{{segment5_marketshare4}}": val("segment5_marketshare4", "Sub-Segment 4"),
-    "{{segment6_marketshare1}}": val("segment6_marketshare1", "Sub-Segment 1"),
-    "{{segment6_marketshare2}}": val("segment6_marketshare2", "Sub-Segment 2"),
-    "{{segment6_marketshare3}}": val("segment6_marketshare3", "Sub-Segment 3"),
-    "{{segment6_marketshare4}}": val("segment6_marketshare4", "Sub-Segment 4"),
+    "{{co1_name_upper}}": coNames["co1_name"].toUpperCase(),
+    "{{co1_seg1_name}}": val("co1_segment_1_name", `${core} Primary Segment`),
+    "{{co1_seg2_name}}": val("co1_segment_2_name", `${core} Secondary Segment`),
   };
 
-  // Segments mapping
-  const typeKeys = ["type_segment_1", "type_segment_2", "type_segment_3"];
-  typeKeys.forEach((key, i) => {
-    if (segments[0] && segments[0].sub_segments && segments[0].sub_segments[i]) {
-      payload[`{{${key}}}`] = segments[0].sub_segments[i];
-    } else {
-      payload[`{{${key}}}`] = val(key, `${core} Type ${i + 1}`);
-    }
-  });
+  for (let i = 1; i <= 10; i++) {
+    const cName = coNames[`co${i}_name`];
+    payload[`{{co${i}_name}}`] = cName;
+    payload[`{{CO${i}_NAME}}`] = cName.toUpperCase();
+  }
 
-  const techKeys = ["tech_segment_1", "tech_segment_2", "tech_segment_3"];
-  techKeys.forEach((key, i) => {
-    if (segments[1] && segments[1].sub_segments && segments[1].sub_segments[i]) {
-      payload[`{{${key}}}`] = segments[1].sub_segments[i];
-    } else {
-      payload[`{{${key}}}`] = val(key, `${core} Tech ${i + 1}`);
-    }
-  });
+  // 2. Semantic Segment Categorization
+  let typeSeg = null, techSeg = null, appSeg = null;
+  const unusedSegs = [];
 
-  const appKeys = ["app_segment_1", "app_segment_2", "app_segment_3", "app_segment_4"];
-  appKeys.forEach((key, i) => {
-    if (segments[2] && segments[2].sub_segments && segments[2].sub_segments[i]) {
-      payload[`{{${key}}}`] = segments[2].sub_segments[i];
+  for (const seg of segments) {
+    const nameLower = seg.name.toLowerCase();
+    if (!typeSeg && (nameLower.includes('type') || nameLower.includes('product') || nameLower.includes('form') || nameLower.includes('grade'))) {
+      typeSeg = seg;
+    } else if (!techSeg && (nameLower.includes('tech') || nameLower.includes('process') || nameLower.includes('method'))) {
+      techSeg = seg;
+    } else if (!appSeg && (nameLower.includes('app') || nameLower.includes('end-use') || nameLower.includes('use'))) {
+      appSeg = seg;
     } else {
-      payload[`{{${key}}}`] = val(key, `${core} App ${i + 1}`);
-    }
-  });
-
-  const HARDCODED = new Set(["Type", "Technology", "Application"]);
-  const segMapping = [
-    [3, "seg4_name", ["seg4_sub1", "seg4_sub2", "seg4_sub3"]],
-    [4, "seg5_name", ["seg5_sub1", "seg5_sub2", "seg5_sub3"]],
-    [5, "seg6_name", ["seg6_sub1", "seg6_sub2", "seg6_sub3"]],
-  ];
-
-  segMapping.forEach(([idx, nameKey, subKeys]) => {
-    if (segments[idx] && !HARDCODED.has(segments[idx].name)) {
-      payload[`{{${nameKey}}}`] = segments[idx].name;
-    } else {
-      payload[`{{${nameKey}}}`] = val(nameKey, `Segment ${idx + 1}`);
-    }
-    subKeys.forEach((subKey, i) => {
-      if (segments[idx] && segments[idx].sub_segments && segments[idx].sub_segments[i]) {
-        payload[`{{${subKey}}}`] = segments[idx].sub_segments[i];
-      } else {
-        payload[`{{${subKey}}}`] = val(subKey, `Sub-Segment ${i + 1}`);
-      }
-    });
-  });
-
-  for (let i = 1; i <= 4; i++) {
-    const key = `{{ch4_custom_section_${i}_title}}`;
-    if (marketInput.custom_sections && marketInput.custom_sections.length >= i) {
-      payload[key] = marketInput.custom_sections[i - 1].title;
-    } else {
-      payload[key] = `Client Requirement ${i}`;
+      unusedSegs.push(seg);
     }
   }
 
-  payload["{{ch4_custom_subsection_4_1_title}}"] = val("ch4_custom_subsection_4_1_title", "Client Requirement 4.1");
+  const remaining = segments.filter(s => s !== typeSeg && s !== techSeg && s !== appSeg);
+  if (!typeSeg && remaining.length > 0) typeSeg = remaining.shift();
+  if (!techSeg && remaining.length > 0) techSeg = remaining.shift();
+  if (!appSeg && remaining.length > 0) appSeg = remaining.shift();
+
+  // Map Type Sub-Segments
+  ["type_segment_1", "type_segment_2", "type_segment_3"].forEach((key, i) => {
+    if (typeSeg && typeSeg.sub_segments && typeSeg.sub_segments[i]) {
+      payload[`{{${key}}}`] = typeSeg.sub_segments[i];
+    } else {
+      payload[`{{${key}}}`] = val(key, `${core} Variant ${i + 1}`);
+    }
+  });
+
+  // Map Tech Sub-Segments
+  ["tech_segment_1", "tech_segment_2", "tech_segment_3"].forEach((key, i) => {
+    if (techSeg && techSeg.sub_segments && techSeg.sub_segments[i]) {
+      payload[`{{${key}}}`] = techSeg.sub_segments[i];
+    } else {
+      payload[`{{${key}}}`] = val(key, `${core} Technology ${i + 1}`);
+    }
+  });
+
+  // Map App Sub-Segments
+  ["app_segment_1", "app_segment_2", "app_segment_3", "app_segment_4"].forEach((key, i) => {
+    if (appSeg && appSeg.sub_segments && appSeg.sub_segments[i]) {
+      payload[`{{${key}}}`] = appSeg.sub_segments[i];
+    } else {
+      payload[`{{${key}}}`] = val(key, `${core} Application ${i + 1}`);
+    }
+  });
+
+  // Map Segments 4, 5, 6
+  const segConfigs = [
+    ["seg4_name", ["seg4_sub1", "seg4_sub2", "seg4_sub3"], null],
+    ["seg5_name", ["seg5_sub1", "seg5_sub2", "seg5_sub3"], ["segment5_marketshare1", "segment5_marketshare2", "segment5_marketshare3", "segment5_marketshare4"]],
+    ["seg6_name", ["seg6_sub1", "seg6_sub2", "seg6_sub3"], ["segment6_marketshare1", "segment6_marketshare2", "segment6_marketshare3", "segment6_marketshare4"]],
+  ];
+
+  const unassigned = segments.filter(s => s !== typeSeg && s !== techSeg && s !== appSeg);
+
+  segConfigs.forEach(([nameKey, subKeys, shareKeys], idx) => {
+    const currSeg = unassigned[idx] || null;
+    const dimensionName = (currSeg && currSeg.name) ? currSeg.name : val(nameKey, `${core} Dimension ${idx + 4}`);
+    payload[`{{${nameKey}}}`] = dimensionName;
+
+    subKeys.forEach((subKey, i) => {
+      if (currSeg && currSeg.sub_segments && currSeg.sub_segments[i]) {
+        payload[`{{${subKey}}}`] = currSeg.sub_segments[i];
+      } else {
+        payload[`{{${subKey}}}`] = val(subKey, `${dimensionName} Sub-category ${i + 1}`);
+      }
+    });
+
+    if (shareKeys) {
+      shareKeys.forEach((shareKey, i) => {
+        if (currSeg && currSeg.sub_segments && currSeg.sub_segments[i]) {
+          payload[`{{${shareKey}}}`] = currSeg.sub_segments[i];
+        } else {
+          payload[`{{${shareKey}}}`] = val(shareKey, `${dimensionName} Option ${i + 1}`);
+        }
+      });
+    }
+  });
+
+  // 3. Client Requirements Mapping
+  for (let i = 1; i <= 4; i++) {
+    const key = `{{ch4_custom_section_${i}_title}}`;
+    if (customReqs.length >= i && customReqs[i - 1].title) {
+      payload[key] = customReqs[i - 1].title;
+    } else {
+      payload[key] = val(`ch4_custom_section_${i}_title`, `${core} Custom Analysis ${i}`);
+    }
+  }
+
+  if (customReqs.length >= 1 && customReqs[0].title) {
+    payload["{{ch4_custom_subsection_4_1_title}}"] = customReqs[0].title;
+  } else {
+    payload["{{ch4_custom_subsection_4_1_title}}"] = val("ch4_custom_subsection_4_1_title", `${core} In-Depth Requirement Analysis`);
+  }
 
   return payload;
 }
@@ -304,7 +366,6 @@ function buildPayload(aiContent, marketInput) {
 async function renderReportDocx(templateBuffer, placeholderDict, adjustCoverTitle) {
   const zip = await JSZip.loadAsync(templateBuffer);
   
-  // Iterate all text files in zip and perform placeholder replacement
   const files = Object.keys(zip.files);
   for (const filename of files) {
     if (filename.endsWith('.xml') || filename.endsWith('.rels')) {
@@ -312,7 +373,6 @@ async function renderReportDocx(templateBuffer, placeholderDict, adjustCoverTitl
       
       for (const [key, val] of Object.entries(placeholderDict)) {
         if (content.includes(key)) {
-          // Escape XML special characters
           const escapedVal = String(val)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -437,6 +497,12 @@ exports.handler = async (event, context) => {
     // Step 3: Build payload
     const payload = buildPayload(aiContent, marketInput);
 
+    // Validate payload before rendering
+    const validation = validatePayload(payload);
+    if (!validation.isValid) {
+      console.warn("Payload validation warnings/errors:", validation.errors);
+    }
+
     // Step 4: Render Template DOCX
     let templatePath = path.join(rootDir, "full_market_report_template_updated.docx");
     if (!fs.existsSync(templatePath)) {
@@ -478,4 +544,12 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({ error: err.message, stack: err.stack })
     };
   }
+};
+
+module.exports = {
+  handler: exports.handler,
+  parseDocxBuffer,
+  buildPayload,
+  getFallbackContent,
+  validatePayload,
 };

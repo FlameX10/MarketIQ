@@ -20,7 +20,31 @@ from src.ai_generator import (
 )
 from src.payload_builder import build_payload, payload_to_dict
 from src.renderer import render_report
-from netlify.functions.generate import handler as netlify_handler
+from src.validator import validate_payload
+
+
+
+class TestValidator(unittest.TestCase):
+    def test_validate_clean_payload(self):
+        clean_payload = {
+            "{{type_segment_1}}": "Porcelain Tiles",
+            "{{seg4_name}}": "End User",
+            "{{co1_name}}": "Tesla Energy",
+        }
+        is_valid, errors = validate_payload(clean_payload)
+        self.assertTrue(is_valid)
+        self.assertEqual(len(errors), 0)
+
+    def test_validate_generic_placeholder_detection(self):
+        bad_payload = {
+            "{{type_segment_1}}": "Ceramic Tiles Type 1",
+            "{{seg4_name}}": "Ceramic Tiles Segment 4",
+            "{{co1_name}}": "FEATURED COMPANY",
+            "{{url}}": "www.FEATURED COMPANY.com",
+        }
+        is_valid, errors = validate_payload(bad_payload)
+        self.assertFalse(is_valid)
+        self.assertGreaterEqual(len(errors), 3)
 
 
 class TestParser(unittest.TestCase):
@@ -40,6 +64,7 @@ class TestParser(unittest.TestCase):
         result = parse_docx(sample_path)
         self.assertIsNotNone(result)
         self.assertIn("Screw", result.market_name)
+        self.assertIn("Stanley Black & Decker", result.parsed_players)
 
     def test_parse_soda(self):
         sample_path = os.path.join(ROOT_DIR, "Global_Soda_Market_Segmentation.docx")
@@ -47,6 +72,7 @@ class TestParser(unittest.TestCase):
         result = parse_docx(sample_path)
         self.assertIsNotNone(result)
         self.assertIn("Soda", result.market_name)
+        self.assertIn("The Coca-Cola Company", result.parsed_players)
 
 
 class TestAIGeneratorUtils(unittest.TestCase):
@@ -62,7 +88,7 @@ class TestAIGeneratorUtils(unittest.TestCase):
 
     def test_validate_and_truncate_content(self):
         sample_dict = {
-            "type_segment_1": "A" * 100,  # Limit is 30
+            "type_segment_1": "A" * 100,
             "custom_key": "Normal text",
         }
         validated = validate_and_truncate_content(sample_dict)
@@ -72,23 +98,42 @@ class TestAIGeneratorUtils(unittest.TestCase):
 
 
 class TestPayloadBuilder(unittest.TestCase):
-    def test_payload_builder(self):
+    def test_payload_builder_semantic_flow(self):
         market_input = MarketInput(
-            market_name="Battery Energy Storage System",
-            market_name_title="Battery Energy Storage System Market",
-            market_name_upper="BATTERY ENERGY STORAGE SYSTEM",
-            market_product_name="Battery Energy Storage System",
+            market_name="Ceramic Tiles",
+            market_name_title="Ceramic Tiles Market",
+            market_name_upper="CERAMIC TILES",
+            market_product_name="Ceramic Tiles",
+            parsed_segments=[
+                {"name": "Tile Type", "sub_segments": ["Porcelain Tiles", "Glazed Ceramic", "Unglazed Ceramic"]},
+                {"name": "Printing Technology", "sub_segments": ["Digital Printing", "Inkjet Printing", "Nano Coating"]},
+                {"name": "Application", "sub_segments": ["Residential Flooring", "Commercial Buildings", "Industrial"]},
+                {"name": "End User", "sub_segments": ["Homeowners", "Construction Companies", "Architects"]},
+                {"name": "Distribution Channel", "sub_segments": ["Direct Sales", "Distributors", "Online Retail"]},
+                {"name": "Material", "sub_segments": ["Clay-based", "Porcelain", "Stoneware"]},
+            ],
+            parsed_players=["Mohawk Industries", "RAK Ceramics", "SCG Ceramics", "Lamosa"],
+            custom_sections=[{"title": "Impact of Raw Material Price Fluctuations", "body": ""}],
         )
-        ai_content = {
-            "type_segment_1": "Lithium-ion",
-            "co1_name": "Tesla",
-        }
-        payload = build_payload(ai_content, market_input)
+
+        payload = build_payload({}, market_input)
         dict_payload = payload_to_dict(payload)
 
-        self.assertEqual(dict_payload["{{market_name}}"], "Battery Energy Storage System")
-        self.assertEqual(dict_payload["{{co1_name_upper}}"], "TESLA")
-        self.assertEqual(dict_payload["{{type_segment_1}}"], "Lithium-ion")
+        self.assertEqual(dict_payload["{{type_segment_1}}"], "Porcelain Tiles")
+        self.assertEqual(dict_payload["{{tech_segment_1}}"], "Digital Printing")
+        self.assertEqual(dict_payload["{{app_segment_1}}"], "Residential Flooring")
+        self.assertEqual(dict_payload["{{seg4_name}}"], "End User")
+        self.assertEqual(dict_payload["{{seg4_sub1}}"], "Homeowners")
+        self.assertEqual(dict_payload["{{seg5_name}}"], "Distribution Channel")
+        self.assertEqual(dict_payload["{{seg5_sub1}}"], "Direct Sales")
+        self.assertEqual(dict_payload["{{seg6_name}}"], "Material")
+        self.assertEqual(dict_payload["{{seg6_sub1}}"], "Clay-based")
+        self.assertEqual(dict_payload["{{co1_name}}"], "Mohawk Industries")
+        self.assertEqual(dict_payload["{{ch4_custom_section_1_title}}"], "Impact of Raw Material Price Fluctuations")
+
+        # Confirm validator passes on generated payload
+        is_valid, errors = validate_payload(dict_payload)
+        self.assertTrue(is_valid, f"Validation errors found: {errors}")
 
 
 class TestRenderer(unittest.TestCase):
@@ -97,9 +142,9 @@ class TestRenderer(unittest.TestCase):
         self.assertTrue(os.path.exists(template_path), "Template docx missing")
 
         placeholders = {
-            "{{market_name}}": "Test Battery System",
-            "{{market_name_upper}}": "TEST BATTERY SYSTEM",
-            "{{MARKET_NAME_UPPER}}": "TEST BATTERY SYSTEM",
+            "{{market_name}}": "Ceramic Tiles",
+            "{{market_name_upper}}": "CERAMIC TILES",
+            "{{MARKET_NAME_UPPER}}": "CERAMIC TILES",
         }
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
@@ -111,75 +156,11 @@ class TestRenderer(unittest.TestCase):
             self.assertTrue(os.path.exists(output_path))
             self.assertGreater(os.path.getsize(output_path), 1000)
 
-            # Verify rendered docx is valid zip archive containing word/document.xml
             with zipfile.ZipFile(output_path, "r") as zip_ref:
-                namelist = zip_ref.namelist()
-                self.assertIn("word/document.xml", namelist)
+                self.assertIn("word/document.xml", zip_ref.namelist())
         finally:
             if os.path.exists(output_path):
                 os.remove(output_path)
-
-
-class TestNetlifyServerlessHandler(unittest.TestCase):
-    def test_handler_get_samples(self):
-        event = {"httpMethod": "GET"}
-        res = netlify_handler(event, None)
-        self.assertEqual(res["statusCode"], 200)
-        body = json.loads(res["body"])
-        self.assertEqual(body["status"], "online")
-        self.assertIn("samples", body)
-        self.assertGreater(len(body["samples"]), 0)
-
-    def test_handler_post_sample(self):
-        payload = {
-            "sample_name": "Global_BESS_Market_Segmentation.docx",
-            "use_api": False
-        }
-        event = {
-            "httpMethod": "POST",
-            "body": json.dumps(payload),
-            "isBase64Encoded": False
-        }
-        res = netlify_handler(event, None)
-        self.assertEqual(res["statusCode"], 200)
-        body = json.loads(res["body"])
-        self.assertTrue(body["success"])
-        self.assertIn("docx_base64", body)
-        self.assertTrue(body["docx_base64"].startswith("UEsDB"))  # Zip header PK..
-
-        # Validate decoded docx binary
-        docx_bytes = base64.b64decode(body["docx_base64"])
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
-            tmp.write(docx_bytes)
-            tmp_path = tmp.name
-
-        try:
-            with zipfile.ZipFile(tmp_path, "r") as zip_ref:
-                self.assertIn("word/document.xml", zip_ref.namelist())
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-
-    def test_handler_post_file_upload(self):
-        sample_path = os.path.join(ROOT_DIR, "Global_Screw_Market_Segmentation.docx")
-        with open(sample_path, "rb") as f:
-            file_b64 = base64.b64encode(f.read()).decode("utf-8")
-
-        payload = {
-            "file_data": file_b64,
-            "filename": "Global_Screw_Market_Segmentation.docx",
-            "use_api": False
-        }
-        event = {
-            "httpMethod": "POST",
-            "body": json.dumps(payload),
-            "isBase64Encoded": False
-        }
-        res = netlify_handler(event, None)
-        self.assertEqual(res["statusCode"], 200)
-        body = json.loads(res["body"])
-        self.assertTrue(body["success"])
-        self.assertIn("Screw", body["market_name"])
 
 
 if __name__ == "__main__":

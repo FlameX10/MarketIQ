@@ -145,14 +145,12 @@ KNOWN_REGIONS = [
 
 def parse_segmentation_docx_content(paragraphs) -> Dict[str, Any]:
     """
-    Parse a list of paragraph objects (from python-docx) to extract:
+    Parse a list of paragraph objects (from python-docx or simple XML elements) to extract:
     - market_title
     - segmentations: dict of {segment_name: [sub_segments]}
     - regions: dict of {region_name: [countries]}
     - key_players: list of player names
     - custom_requirements: list of requirement strings
-
-    Returns a dict with all parsed info.
     """
     market_title = ""
     segmentations = {}  # OrderedDict of {seg_name: [sub_segs]}
@@ -171,65 +169,79 @@ def parse_segmentation_docx_content(paragraphs) -> Dict[str, Any]:
 
         style = p.style.name if (hasattr(p, "style") and p.style) else "Normal"
 
+        # Check for inline segment definitions e.g. "1. Type: Porcelain, Glazed..." or "By Type: Porcelain, Glazed..."
+        inline_seg_match = re.match(r"^(?:\d+[\.\)]\s*|By\s+)?([A-Za-z0-9\s/&\-]+?)\s*:\s*(.+)$", text, re.IGNORECASE)
+        if inline_seg_match:
+            header_candidate = inline_seg_match.group(1).strip()
+            values_str = inline_seg_match.group(2).strip()
+
+            header_lower = header_candidate.lower()
+            if "player" in header_lower or "company" in header_lower or "competitor" in header_lower:
+                players = [x.strip() for x in re.split(r"[,;\n]", values_str) if x.strip()]
+                key_players.extend(players)
+                continue
+            elif "custom" in header_lower or "requirement" in header_lower:
+                reqs = [x.strip() for x in re.split(r"[;\n]", values_str) if x.strip()]
+                custom_requirements.extend(reqs)
+                continue
+            elif not any(k in header_lower for k in ["global", "market", "segmentation", "report", "source"]):
+                subs = [x.strip() for x in re.split(r"[,;\n]", values_str) if x.strip()]
+                if subs:
+                    segmentations[header_candidate] = subs
+                    continue
+
         # Heading 1 → market title
-        if style in ("Heading 1",) or (
-            not market_title and style.startswith("Heading")
-        ):
-            market_title = text
+        if style in ("Heading 1",) or (not market_title and style.startswith("Heading")):
+            if "market" in text.lower() or "segmentation" in text.lower():
+                market_title = text
+                continue
+
+        text_lower = text.lower()
+
+        # State detection
+        if re.search(r"\b(key\s+players?|top\s+companies|competitive\s+landscape|key\s+market\s+players)\b", text_lower):
+            state = "PLAYERS"
             continue
-
-        # Heading 2 or section-like patterns
-        is_heading2 = style == "Heading 2"
-        is_by_section = text.startswith("By ")
-        is_named_section = text in (
-            "Key Players",
-            "Custom Requirements",
-            "Custom Requirement",
-            "Custom Requirements:",
-        )
-
-        if is_heading2 or is_by_section or is_named_section:
-            if text.startswith("By Region") or text == "By Region":
-                state = "REGION"
-                current_region = None
-            elif text in ("Key Players", "Key Players:"):
-                state = "PLAYERS"
-            elif text in (
-                "Custom Requirements",
-                "Custom Requirement",
-                "Custom Requirements:",
-            ):
-                state = "CUSTOM"
-            elif text.startswith("By "):
-                state = "SEGMENT"
-                seg_name = text.replace("By ", "").strip().rstrip(":")
+        elif re.search(r"\b(custom\s+requirements?|client\s+requirements?|special\s+sections?)\b", text_lower):
+            state = "CUSTOM"
+            continue
+        elif re.search(r"\b(by\s+region|regional\s+breakdown|geography|regional\s+analysis)\b", text_lower):
+            state = "REGION"
+            current_region = None
+            continue
+        elif style == "Heading 2" or text.startswith("By ") or re.match(r"^(?:Chapter\s+\d+|Segment|\d+[\.\)])", text, re.IGNORECASE):
+            state = "SEGMENT"
+            seg_name = re.sub(r"^(?:By\s+|Chapter\s+\d+:?\s*|\d+[\.\)]\s*)", "", text, flags=re.IGNORECASE).strip().rstrip(":")
+            if seg_name and not any(k in seg_name.lower() for k in ["region", "player", "company", "custom", "requirement"]):
                 current_segment = seg_name
                 if current_segment not in segmentations:
                     segmentations[current_segment] = []
-            else:
-                state = "OTHER"
-            continue
+                continue
 
-        # Parse based on state
+        # Content parsing based on active state
         if state == "SEGMENT" and current_segment:
-            if text and text not in segmentations[current_segment]:
-                segmentations[current_segment].append(text)
+            cleaned_val = re.sub(r"^[-•*]\s*", "", text).strip()
+            if cleaned_val and cleaned_val not in segmentations[current_segment]:
+                segmentations[current_segment].append(cleaned_val)
 
         elif state == "PLAYERS":
-            if text:
-                key_players.append(text)
+            cleaned_val = re.sub(r"^[-•*\d+.]\s*", "", text).strip()
+            if cleaned_val and cleaned_val not in key_players:
+                key_players.append(cleaned_val)
 
         elif state == "CUSTOM":
-            if text:
-                custom_requirements.append(text)
+            cleaned_val = re.sub(r"^[-•*\d+.]\s*", "", text).strip()
+            if cleaned_val and cleaned_val not in custom_requirements:
+                custom_requirements.append(cleaned_val)
 
         elif state == "REGION":
-            # Distinguish region names from country names
             if text in KNOWN_REGIONS:
                 current_region = text
                 regions[current_region] = []
             elif current_region:
-                regions[current_region].append(text)
+                cleaned_val = re.sub(r"^[-•*\d+.]\s*", "", text).strip()
+                if cleaned_val:
+                    regions[current_region].append(cleaned_val)
 
     return {
         "market_title": market_title,
