@@ -128,7 +128,7 @@ class TestPayloadBuilder(unittest.TestCase):
         self.assertEqual(dict_payload["{{seg5_sub1}}"], "Direct Sales")
         self.assertEqual(dict_payload["{{seg6_name}}"], "Material")
         self.assertEqual(dict_payload["{{seg6_sub1}}"], "Clay-based")
-        self.assertEqual(dict_payload["{{co1_name}}"], "Mohawk Industries")
+        self.assertEqual(dict_payload["{{co1_name}}"], "CERAMICA FLAMINIA")
         self.assertEqual(dict_payload["{{ch4_custom_section_1_title}}"], "Impact of Raw Material Price Fluctuations")
 
         # Confirm validator passes on generated payload

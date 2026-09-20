@@ -211,8 +211,16 @@ def main():
 
     # Step 4: Build payload and render DOCX
     print("\n[4/5] Building payload and rendering DOCX...")
-    payload = build_payload(ai_content, market_input)
+    payload = build_payload(ai_content or {}, market_input)
     placeholder_dict = payload_to_dict(payload)
+
+    # Validate payload against taxonomy and forbidden synthetic strings
+    from src.validator import validate_payload
+    is_valid, validation_errors = validate_payload(placeholder_dict, market_input)
+    if not is_valid:
+        print("Warning/Error: Payload validation failed with the following issues:")
+        for err in validation_errors:
+            print(f"  - {err}")
 
     print(f"  Placeholders to replace: {len(placeholder_dict)}")
 

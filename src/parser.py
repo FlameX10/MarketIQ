@@ -209,7 +209,7 @@ def parse_segmentation_docx_content(paragraphs) -> Dict[str, Any]:
             state = "REGION"
             current_region = None
             continue
-        elif style == "Heading 2" or text.startswith("By ") or re.match(r"^(?:Chapter\s+\d+|Segment|\d+[\.\)])", text, re.IGNORECASE):
+        elif state != "CUSTOM" and (style == "Heading 2" or text.startswith("By ") or re.match(r"^(?:Chapter\s+\d+|Segment|\d+[\.\)])", text, re.IGNORECASE)):
             state = "SEGMENT"
             seg_name = re.sub(r"^(?:By\s+|Chapter\s+\d+:?\s*|\d+[\.\)]\s*)", "", text, flags=re.IGNORECASE).strip().rstrip(":")
             if seg_name and not any(k in seg_name.lower() for k in ["region", "player", "company", "custom", "requirement"]):
@@ -230,9 +230,17 @@ def parse_segmentation_docx_content(paragraphs) -> Dict[str, Any]:
                 key_players.append(cleaned_val)
 
         elif state == "CUSTOM":
-            cleaned_val = re.sub(r"^[-•*\d+.]\s*", "", text).strip()
-            if cleaned_val and cleaned_val not in custom_requirements:
-                custom_requirements.append(cleaned_val)
+            # Check if this line is a title e.g. "1. Sustainable Construction Trends"
+            # or a description bullet under previous title
+            title_match = re.match(r"^\d+[\.\)]\s*(.+)", text)
+            if title_match:
+                custom_requirements.append({"title": text.strip(), "body": ""})
+            elif custom_requirements and isinstance(custom_requirements[-1], dict) and not custom_requirements[-1]["body"]:
+                custom_requirements[-1]["body"] = text.strip()
+            else:
+                cleaned_val = re.sub(r"^[-•*\d+.]\s*", "", text).strip()
+                if cleaned_val and not any(isinstance(r, dict) and r.get("title") == text for r in custom_requirements):
+                    custom_requirements.append({"title": text.strip(), "body": ""})
 
         elif state == "REGION":
             if text in KNOWN_REGIONS:
@@ -342,7 +350,7 @@ def parse_docx(docx_path: str) -> Optional[MarketInput]:
             parsed_segments.append(
                 {
                     "name": seg_name,
-                    "sub_segments": sub_segs[:6],  # cap at 6 sub-segments per dimension
+                    "sub_segments": sub_segs,
                 }
             )
 
@@ -358,7 +366,12 @@ def parse_docx(docx_path: str) -> Optional[MarketInput]:
 
         # Custom requirements → custom sections for Chapter 4
         custom_reqs = parsed.get("custom_requirements", [])
-        custom_sections = [{"title": r, "body": ""} for r in custom_reqs[:10]]
+        custom_sections = []
+        for r in custom_reqs[:10]:
+            if isinstance(r, dict):
+                custom_sections.append(r)
+            else:
+                custom_sections.append({"title": str(r), "body": ""})
 
         print(f"  Detected segments: {[s['name'] for s in parsed_segments]}")
         print(f"  Detected regions: {region_names}")
