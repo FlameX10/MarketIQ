@@ -1,0 +1,9 @@
+{
+  "openrouter_api_key": "",
+  "model": "nvidia/nemotron-3-nano-30b-a3b:free",
+  "cache_ttl_hours": 24,
+  "max_retries": 3,
+  "retry_delay": 2,
+  "output_format": "docx+json",
+  "template_file": "full_market_report_template_updated.docx"
+}

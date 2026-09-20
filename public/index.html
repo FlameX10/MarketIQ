@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MarketIQ | Enterprise Market Intelligence Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Navbar -->
+    <header class="app-header">
+      <div class="brand-container">
+        <div class="brand-logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+        </div>
+        <div>
+          <span class="brand-title">MarketIQ</span>
+          <span class="brand-tagline">Enterprise Research Automation</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <a href="https://logicawork.com" target="_blank" rel="noopener noreferrer" class="vendor-link">
+          Made by <strong>Logicawork.com</strong>
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="main-container">
+      <div class="page-intro">
+        <h1>Market Report Generator</h1>
+        <p>Transform raw market segmentation DOCX files into comprehensive 16-chapter executive research reports.</p>
+      </div>
+
+      <!-- Card: Upload & Configuration -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Input Document & Data Source</h2>
+          <p>Upload a segmentation DOCX or select an included market dataset.</p>
+        </div>
+
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="fileInput" accept=".docx" class="file-input">
+          <div class="dropzone-content">
+            <div class="dropzone-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+            <div class="dropzone-text">
+              <span class="primary-text">Click to upload or drag & drop</span>
+              <span class="secondary-text">Microsoft Word (.docx) input segmentation files</span>
+            </div>
+            <div class="selected-file-badge" id="selectedFile">No file selected</div>
+          </div>
+        </div>
+
+        <div class="divider">
+          <span>OR SELECT PRESET DATASET</span>
+        </div>
+
+        <div class="samples-grid" id="samplesGrid">
+          <button class="sample-card" data-sample="Global_BESS_Market_Segmentation.docx">
+            <div class="sample-card-title">Battery Energy Storage System</div>
+            <div class="sample-card-meta">DOCX • Global BESS Market</div>
+          </button>
+          <button class="sample-card" data-sample="Global_Screw_Market_Segmentation.docx">
+            <div class="sample-card-title">Industrial Screw Market</div>
+            <div class="sample-card-meta">DOCX • Fasteners Industry</div>
+          </button>
+          <button class="sample-card" data-sample="Global_Soda_Market_Segmentation.docx">
+            <div class="sample-card-title">Global Soda Industry</div>
+            <div class="sample-card-meta">DOCX • Beverage Market</div>
+          </button>
+          <button class="sample-card" data-sample="Sample_Green Methanol Market.docx">
+            <div class="sample-card-title">Green Methanol Market</div>
+            <div class="sample-card-meta">DOCX • Clean Energy</div>
+          </button>
+        </div>
+
+        <div class="options-bar">
+          <label class="checkbox-container">
+            <input type="checkbox" id="useApiCheck" checked>
+            <span class="checkmark"></span>
+            <span class="checkbox-label">Enable OpenRouter AI Generation (Uncheck for offline deterministic fallback)</span>
+          </label>
+        </div>
+
+        <div class="action-footer">
+          <button id="generateBtn" class="btn btn-primary">
+            <span>Generate Market Report (.docx)</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Card: Status & Execution -->
+      <section class="panel hidden" id="statusCard">
+        <div class="panel-header">
+          <h2>Execution Pipeline</h2>
+          <p>Real-time progress tracking of parsing, AI synthesis, and DOCX XML rendering.</p>
+        </div>
+
+        <div class="progress-track">
+          <div class="progress-fill" id="progressBar"></div>
+        </div>
+
+        <div class="pipeline-steps">
+          <div class="pipeline-step" id="stageParse">
+            <div class="step-indicator">1</div>
+            <div class="step-details">
+              <div class="step-name">DOCX Structure Parsing</div>
+              <div class="step-desc">Extracting market definitions, segments, regions, and custom requirements</div>
+            </div>
+          </div>
+          <div class="pipeline-step" id="stageAi">
+            <div class="step-indicator">2</div>
+            <div class="step-details">
+              <div class="step-name">AI Research Synthesis</div>
+              <div class="step-desc">Querying OpenRouter API for section structured narrative</div>
+            </div>
+          </div>
+          <div class="pipeline-step" id="stagePayload">
+            <div class="step-indicator">3</div>
+            <div class="step-details">
+              <div class="step-name">Placeholder Payload Mapping</div>
+              <div class="step-desc">Building dictionary map for 60+ template placeholders</div>
+            </div>
+          </div>
+          <div class="pipeline-step" id="stageRender">
+            <div class="step-indicator">4</div>
+            <div class="step-details">
+              <div class="step-name">XML Document Rendering</div>
+              <div class="step-desc">Preserving styles, tables, and replacing document XML nodes</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Result Box -->
+        <div class="result-banner hidden" id="resultBox">
+          <div class="banner-content">
+            <div class="banner-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+            </div>
+            <div>
+              <h3>Report Generation Complete</h3>
+              <p id="resultMarketName">Market intelligence report is ready for download.</p>
+            </div>
+          </div>
+
+          <div class="banner-actions">
+            <button id="downloadDocxBtn" class="btn btn-success">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Download Report (.docx)</span>
+            </button>
+            <button id="downloadJsonBtn" class="btn btn-secondary">
+              <span>Download Audit Payload (.json)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Error Banner -->
+        <div class="error-banner hidden" id="errorBox">
+          <div class="error-content">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span id="errorMessage">An execution error occurred.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="footer-container">
+        <span>MarketIQ Enterprise System</span>
+        <span class="footer-separator">•</span>
+        <span>Powered by <a href="https://logicawork.com" target="_blank" rel="noopener noreferrer">Logicawork.com</a></span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

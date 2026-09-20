@@ -1,0 +1,30 @@
+# Python cache & bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.ruff_cache/
+.pytest_cache/
+
+# Output and temporary files
+output/
+cache/
+*.log
+*.tmp
+~$*.docx
+
+# Environment variables & keys
+.env
+.env.local
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Netlify local build directory
+.netlify/
