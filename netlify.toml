@@ -5,6 +5,16 @@
 [build.environment]
   PYTHON_VERSION = "3.10"
 
+[functions]
+  directory = "netlify/functions"
+  included_files = [
+    "src/**",
+    "templates/**",
+    "config.json",
+    "run.py",
+    "*.docx"
+  ]
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

@@ -6,10 +6,19 @@ import tempfile
 import traceback
 from datetime import datetime
 
-# Add project root directory to python path
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
+# Dynamic multi-path resolution for Netlify deployment environment
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+GRANDPARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", ".."))
+CWD_DIR = os.getcwd()
+
+for p in [CURRENT_DIR, PARENT_DIR, GRANDPARENT_DIR, CWD_DIR]:
+    if p and p not in sys.path and os.path.exists(p):
+        sys.path.insert(0, p)
+
+ROOT_DIR = GRANDPARENT_DIR
+if not os.path.exists(os.path.join(ROOT_DIR, "src")) and os.path.exists(os.path.join(CWD_DIR, "src")):
+    ROOT_DIR = CWD_DIR
 
 from src.parser import parse_docx
 from src.ai_generator import AIGenerator
