@@ -150,12 +150,24 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBar.style.width = '85%';
       }, 1200);
 
-      // Send Request to API endpoint
-      const response = await fetch('/api/generate', {
+      // Send Request to API endpoint (with fallback to /.netlify/functions/generate)
+      let apiEndpoint = '/api/generate';
+      let response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || contentType.includes('text/html')) {
+        // Fallback to Netlify function direct path if redirect returned HTML
+        apiEndpoint = '/.netlify/functions/generate';
+        response = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
 
       const resData = await response.json();
 
