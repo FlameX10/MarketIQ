@@ -5,7 +5,6 @@ Single-pass content generation for the 16-chapter template (30 data-only fields)
 
 import json
 import time
-import re
 from typing import Dict, Any, Optional
 from openai import OpenAI
 
@@ -78,19 +77,16 @@ def validate_and_truncate_content(content: Dict[str, Any]) -> Dict[str, Any]:
 
 def extract_core_product_name(raw_name: str) -> str:
     words_to_remove = [
-        "Global",
-        "Market",
-        "Segmentation",
-        "Industry",
-        "Analysis",
-        "Overview",
+        "Global ",
+        "Market ",
+        "Segmentation ",
+        "Industry ",
+        "Analysis ",
+        "Overview ",
     ]
     core_name = raw_name
     for word in words_to_remove:
-        # Use regex pattern to replace whole word
-        core_name = re.sub(rf"\b{re.escape(word)}\b", "", core_name, flags=re.IGNORECASE)
-
-    core_name = " ".join(core_name.split())
+        core_name = core_name.replace(word, "")
 
     if not core_name.strip():
         parts = raw_name.split()
@@ -257,46 +253,46 @@ Return ONLY valid JSON with these exact keys, starting with {{ and ending with }
         core = extract_core_product_name(market_name_title)
 
         return {
-            "type_segment_1": f"{core} Standard Grade",
-            "type_segment_2": f"{core} Premium Grade",
-            "type_segment_3": f"{core} Specialized Grade",
-            "tech_segment_1": "Advanced Automated Processing",
-            "tech_segment_2": "NextGen Manufacturing",
-            "tech_segment_3": "High-Efficiency Production",
-            "app_segment_1": "Industrial Applications",
-            "app_segment_2": "Commercial Sector",
-            "app_segment_3": "Residential Sector",
-            "app_segment_4": "Specialty Applications",
-            "co1_name": f"Global {core} Leaders",
-            "co2_name": f"{core} Innovations Inc",
-            "co3_name": f"Apex {core} Solutions",
-            "co4_name": f"Prime {core} Corp",
-            "co5_name": f"Vanguard {core}",
-            "co6_name": f"United {core}",
-            "co7_name": f"International {core}",
-            "co8_name": f"Strategic {core}",
-            "co9_name": f"Pioneer {core}",
-            "co10_name": f"Global {core} Enterprise",
-            "co1_segment_1_name": f"Core {core} Products",
-            "co1_segment_2_name": f"{core} Services & Accessories",
-            "segment5_marketshare1": "Direct Enterprise Sales",
-            "segment5_marketshare2": "Distributor Network",
-            "segment5_marketshare3": "Online Channels",
-            "segment6_marketshare1": "Premium Material",
-            "segment6_marketshare2": "Standard Material",
-            "segment6_marketshare3": "Composite Material",
-            "segment6_marketshare4": "Eco-friendly Material",
-            "seg4_name": "End User",
-            "seg4_sub1": "Industrial End Users",
-            "seg4_sub2": "Commercial End Users",
-            "seg4_sub3": "Individual Consumers",
-            "seg5_name": "Distribution Channel",
-            "seg5_sub1": "Direct Enterprise Sales",
-            "seg5_sub2": "Distributor Network",
-            "seg5_sub3": "Online E-Commerce",
-            "seg6_name": "Material",
-            "seg6_sub1": "Premium Material",
-            "seg6_sub2": "Standard Material",
-            "seg6_sub3": "Composite Material",
-            "ch4_custom_subsection_4_1_title": f"Strategic Analysis of {core} Market Opportunities",
+            "type_segment_1": f"{core} Type 1",
+            "type_segment_2": f"{core} Type 2",
+            "type_segment_3": f"{core} Type 3",
+            "tech_segment_1": f"{core} Tech 1",
+            "tech_segment_2": f"{core} Tech 2",
+            "tech_segment_3": f"{core} Tech 3",
+            "app_segment_1": f"{core} App 1",
+            "app_segment_2": f"{core} App 2",
+            "app_segment_3": f"{core} App 3",
+            "app_segment_4": f"{core} App 4",
+            "co1_name": "Featured Company",
+            "co2_name": "Competitor 2",
+            "co3_name": "Competitor 3",
+            "co4_name": "Competitor 4",
+            "co5_name": "Co5",
+            "co6_name": "Co6",
+            "co7_name": "Competitor 7",
+            "co8_name": "Co8",
+            "co9_name": "Co9",
+            "co10_name": "Co10",
+            "co1_segment_1_name": f"{core} Segment 1",
+            "co1_segment_2_name": f"{core} Segment 2",
+            "segment5_marketshare1": "Sub-Segment 1",
+            "segment5_marketshare2": "Sub-Segment 2",
+            "segment5_marketshare3": "Sub-Segment 3",
+            "segment6_marketshare1": "Sub-Segment 1",
+            "segment6_marketshare2": "Sub-Segment 2",
+            "segment6_marketshare3": "Sub-Segment 3",
+            "segment6_marketshare4": "Sub-Segment 4",
+            "seg4_name": f"{core} Segment 4",
+            "seg4_sub1": "Sub-Segment 1",
+            "seg4_sub2": "Sub-Segment 2",
+            "seg4_sub3": "Sub-Segment 3",
+            "seg5_name": f"{core} Segment 5",
+            "seg5_sub1": "Sub-Segment 1",
+            "seg5_sub2": "Sub-Segment 2",
+            "seg5_sub3": "Sub-Segment 3",
+            "seg6_name": f"{core} Segment 6",
+            "seg6_sub1": "Sub-Segment 1",
+            "seg6_sub2": "Sub-Segment 2",
+            "seg6_sub3": "Sub-Segment 3",
+            "ch4_custom_subsection_4_1_title": "Client Requirement 4.1",
         }

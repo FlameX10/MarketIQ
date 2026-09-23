@@ -68,7 +68,7 @@ def handle_api_request(method, body_str):
         ai_content = None
         api_key = config.get("openrouter_api_key", os.environ.get("OPENROUTER_API_KEY", ""))
         if use_api and api_key:
-            generator = AIGenerator(api_key=api_key, model=config.get("model", "nvidia/nemotron-3-nano-30b-a3b:free"))
+            generator = AIGenerator(api_key=api_key, model=config.get("model", "nvidia/nemotron-3-nano-30b-a3b"))
             ai_content = generator.generate(market_input.market_name, market_input.market_name_title, market_input.custom_sections)
 
         if not ai_content:
@@ -98,7 +98,7 @@ def handle_api_request(method, body_str):
                 "success": True,
                 "market_name": market_input.market_name,
                 "filename": download_filename,
-                "docx_base64": docxB64,
+                "docx_base64": docx_b64,
                 "audit_json": {
                     "market_name": market_input.market_name,
                     "generated_at": datetime.now().isoformat(),
@@ -109,6 +109,8 @@ def handle_api_request(method, body_str):
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"statusCode": 500, "headers": {"Content-Type": "application/json"}, "body": json.dumps({"error": str(e)})}
 
     finally:
@@ -125,7 +127,7 @@ class LocalDevHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=PUBLIC_DIR, **kwargs)
 
     def do_OPTIONS(self):
-        if self.path.startswith("/api/"):
+        if self.path.startswith("/api/") or "generate" in self.path:
             self.send_response(200)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -135,14 +137,14 @@ class LocalDevHandler(http.server.SimpleHTTPRequestHandler):
             super().do_OPTIONS()
 
     def do_GET(self):
-        if self.path.startswith("/api/generate"):
+        if "generate" in self.path:
             res = handle_api_request("GET", "")
             self._send_res(res)
         else:
             super().do_GET()
 
     def do_POST(self):
-        if self.path.startswith("/api/generate"):
+        if "generate" in self.path:
             content_length = int(self.headers.get("Content-Length", 0))
             body_bytes = self.rfile.read(content_length)
             res = handle_api_request("POST", body_bytes.decode("utf-8"))

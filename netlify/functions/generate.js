@@ -74,19 +74,48 @@ function sanitizeFilename(name) {
   return safe.trim().replace(/\s+/g, '_');
 }
 
-function getFallbackContent(marketName) {
+function getFallbackContent(marketName, marketInput) {
   const core = extractCoreProductName(marketName);
+  const segments = (marketInput && marketInput.parsed_segments) || [];
+
+  function segSubs(keywords, n) {
+    for (const seg of segments) {
+      const nl = seg.name.toLowerCase();
+      if (keywords.some(k => nl.includes(k)) && seg.sub_segments && seg.sub_segments.length > 0) {
+        return seg.sub_segments.slice(0, n);
+      }
+    }
+    return [];
+  }
+  function pick(subs, idx, fallback) {
+    return (subs && subs.length > idx) ? subs[idx] : fallback;
+  }
+  function segName(keywords, fallback) {
+    const seg = segments.find(s => keywords.some(k => s.name.toLowerCase().includes(k)));
+    return seg ? seg.name : fallback;
+  }
+
+  const typeSubs  = segSubs(['type', 'product', 'form', 'grade'], 3);
+  const techSubs  = segSubs(['tech', 'process', 'method'], 3);
+  const appSubs   = segSubs(['app', 'end-use', 'use'], 4);
+  const euSubs    = segSubs(['end user', 'user', 'consumer'], 3);
+  const euName    = segName(['end user', 'user', 'consumer'], 'End User');
+  const distSubs  = segSubs(['distribut', 'channel', 'sales'], 4);
+  const distName  = segName(['distribut', 'channel', 'sales'], 'Distribution Channel');
+  const matSubs   = segSubs(['material', 'raw'], 4);
+  const matName   = segName(['material', 'raw'], 'Material');
+
   return {
-    type_segment_1: `${core} Standard Grade`,
-    type_segment_2: `${core} Premium Grade`,
-    type_segment_3: `${core} Specialized Grade`,
-    tech_segment_1: "Advanced Automated Processing",
-    tech_segment_2: "NextGen Manufacturing",
-    tech_segment_3: "High-Efficiency Production",
-    app_segment_1: "Industrial Applications",
-    app_segment_2: "Commercial Sector",
-    app_segment_3: "Residential Sector",
-    app_segment_4: "Specialty Applications",
+    type_segment_1: pick(typeSubs, 0, `${core} Standard Grade`),
+    type_segment_2: pick(typeSubs, 1, `${core} Premium Grade`),
+    type_segment_3: pick(typeSubs, 2, `${core} Specialized Grade`),
+    tech_segment_1: pick(techSubs, 0, 'Advanced Automated Processing'),
+    tech_segment_2: pick(techSubs, 1, 'NextGen Manufacturing'),
+    tech_segment_3: pick(techSubs, 2, 'High-Efficiency Production'),
+    app_segment_1: pick(appSubs, 0, 'Industrial Applications'),
+    app_segment_2: pick(appSubs, 1, 'Commercial Sector'),
+    app_segment_3: pick(appSubs, 2, 'Residential Sector'),
+    app_segment_4: pick(appSubs, 3, pick(appSubs, 0, 'Specialty Applications')),
     co1_name: `Global ${core} Leaders`,
     co2_name: `${core} Innovations Inc`,
     co3_name: `Apex ${core} Solutions`,
@@ -99,25 +128,26 @@ function getFallbackContent(marketName) {
     co10_name: `Global ${core} Enterprise`,
     co1_segment_1_name: `Core ${core} Products`,
     co1_segment_2_name: `${core} Services & Accessories`,
-    segment5_marketshare1: "Direct Enterprise Sales",
-    segment5_marketshare2: "Distributor Network",
-    segment5_marketshare3: "Online Channels",
-    segment6_marketshare1: "Premium Material",
-    segment6_marketshare2: "Standard Material",
-    segment6_marketshare3: "Composite Material",
-    segment6_marketshare4: "Eco-friendly Material",
-    seg4_name: "End User",
-    seg4_sub1: "Industrial End Users",
-    seg4_sub2: "Commercial End Users",
-    seg4_sub3: "Individual Consumers",
-    seg5_name: "Distribution Channel",
-    seg5_sub1: "Direct Enterprise Sales",
-    seg5_sub2: "Distributor Network",
-    seg5_sub3: "Online E-Commerce",
-    seg6_name: "Material",
-    seg6_sub1: "Premium Material",
-    seg6_sub2: "Standard Material",
-    seg6_sub3: "Composite Material",
+    seg4_name: euName,
+    seg4_sub1: pick(euSubs, 0, 'Industrial End Users'),
+    seg4_sub2: pick(euSubs, 1, 'Commercial End Users'),
+    seg4_sub3: pick(euSubs, 2, 'Individual Consumers'),
+    seg5_name: distName,
+    seg5_sub1: pick(distSubs, 0, 'Direct Enterprise Sales'),
+    seg5_sub2: pick(distSubs, 1, 'Distributor Network'),
+    seg5_sub3: pick(distSubs, 2, 'Online E-Commerce'),
+    segment5_marketshare1: pick(distSubs, 0, 'Direct Enterprise Sales'),
+    segment5_marketshare2: pick(distSubs, 1, 'Distributor Network'),
+    segment5_marketshare3: pick(distSubs, 2, 'Online Channels'),
+    segment5_marketshare4: pick(distSubs, 3, pick(distSubs, 0, 'Retail')),
+    seg6_name: matName,
+    seg6_sub1: pick(matSubs, 0, 'Premium Material'),
+    seg6_sub2: pick(matSubs, 1, 'Standard Material'),
+    seg6_sub3: pick(matSubs, 2, 'Composite Material'),
+    segment6_marketshare1: pick(matSubs, 0, 'Premium Material'),
+    segment6_marketshare2: pick(matSubs, 1, 'Standard Material'),
+    segment6_marketshare3: pick(matSubs, 2, 'Composite Material'),
+    segment6_marketshare4: pick(matSubs, 3, pick(matSubs, 0, 'Eco-friendly Material')),
     ch4_custom_subsection_4_1_title: `Strategic Analysis of ${core} Market Opportunities`,
   };
 }
@@ -240,29 +270,11 @@ const KNOWN_COMPANY_MAPS = {
 
 function buildPayload(aiContent, marketInput) {
   const core = marketInput.market_name;
-  const coreLower = core.toLowerCase();
   const segments = marketInput.parsed_segments || [];
-  const players = marketInput.parsed_players || [];
-  const customReqs = marketInput.custom_sections || [];
+  const ai = aiContent || {};
 
-  // 1. Company / Key Player Mapping (Deterministic)
-  const coNames = {};
-  let matchedCompanies = null;
-  for (const [key, cList] of Object.entries(KNOWN_COMPANY_MAPS)) {
-    if (coreLower.includes(key) || key.includes(coreLower)) {
-      matchedCompanies = cList;
-      break;
-    }
-  }
-
-  for (let i = 1; i <= 10; i++) {
-    if (matchedCompanies && matchedCompanies.length >= i) {
-      coNames[`co${i}_name`] = matchedCompanies[i - 1];
-    } else if (players.length >= i && players[i - 1]) {
-      coNames[`co${i}_name`] = players[i - 1];
-    } else {
-      coNames[`co${i}_name`] = `${core} Key Player ${i}`;
-    }
+  function val(key, fallback = "") {
+    return (ai[key] && String(ai[key]).trim()) ? String(ai[key]).trim() : fallback;
   }
 
   const payload = {
@@ -275,147 +287,101 @@ function buildPayload(aiContent, marketInput) {
     "{{forecast_start_year}}": marketInput.forecast_start_year,
     "{{forecast_end_year}}": marketInput.forecast_end_year,
     "{{history_start_year}}": marketInput.history_start_year,
-    "{{co1_name_upper}}": coNames["co1_name"].toUpperCase(),
-    "{{co1_seg1_name}}": coreLower.includes("ceramic tile") ? "Large-Format Floor Tiles" : `Primary ${core} Products`,
-    "{{co1_seg2_name}}": coreLower.includes("ceramic tile") ? "Decorative Wall Tiles" : `${core} Services & Accessories`,
+    "{{co1_name_upper}}": val("co1_name", "Featured Company").toUpperCase(),
+    "{{co2_name}}": val("co2_name", "Competitor 2"),
+    "{{co3_name}}": val("co3_name", "Competitor 3"),
+    "{{co4_name}}": val("co4_name", "Competitor 4"),
+    "{{co5_name}}": val("co5_name", "Competitor 5"),
+    "{{co6_name}}": val("co6_name", "Competitor 6"),
+    "{{co7_name}}": val("co7_name", "Competitor 7"),
+    "{{co8_name}}": val("co8_name", "Competitor 8"),
+    "{{co9_name}}": val("co9_name", "Competitor 9"),
+    "{{co10_name}}": val("co10_name", "Competitor 10"),
+    "{{CO1_NAME}}": val("co1_name", "Featured Company").toUpperCase(),
+    "{{CO2_NAME}}": val("co2_name", "Competitor 2").toUpperCase(),
+    "{{CO3_NAME}}": val("co3_name", "Competitor 3").toUpperCase(),
+    "{{CO4_NAME}}": val("co4_name", "Competitor 4").toUpperCase(),
+    "{{CO5_NAME}}": val("co5_name", "Competitor 5").toUpperCase(),
+    "{{CO6_NAME}}": val("co6_name", "Competitor 6").toUpperCase(),
+    "{{CO7_NAME}}": val("co7_name", "Competitor 7").toUpperCase(),
+    "{{CO8_NAME}}": val("co8_name", "Competitor 8").toUpperCase(),
+    "{{CO9_NAME}}": val("co9_name", "Competitor 9").toUpperCase(),
+    "{{CO10_NAME}}": val("co10_name", "Competitor 10").toUpperCase(),
+    "{{co1_seg1_name}}": val("co1_segment_1_name", `${core} Segment 1`),
+    "{{co1_seg2_name}}": val("co1_segment_2_name", `${core} Segment 2`),
+    "{{segment5_marketshare1}}": val("segment5_marketshare1", "Sub-Segment 1"),
+    "{{segment5_marketshare2}}": val("segment5_marketshare2", "Sub-Segment 2"),
+    "{{segment5_marketshare3}}": val("segment5_marketshare3", "Sub-Segment 3"),
+    "{{segment5_marketshare4}}": val("segment5_marketshare4", "Sub-Segment 4"),
+    "{{segment6_marketshare1}}": val("segment6_marketshare1", "Sub-Segment 1"),
+    "{{segment6_marketshare2}}": val("segment6_marketshare2", "Sub-Segment 2"),
+    "{{segment6_marketshare3}}": val("segment6_marketshare3", "Sub-Segment 3"),
+    "{{segment6_marketshare4}}": val("segment6_marketshare4", "Sub-Segment 4"),
   };
 
-  for (let i = 1; i <= 10; i++) {
-    const cName = coNames[`co${i}_name`];
-    payload[`{{co${i}_name}}`] = cName;
-    payload[`{{CO${i}_NAME}}`] = cName.toUpperCase();
-  }
-
-  // 2. Semantic Segment Categorization (Locked Taxonomy from Input)
-  let typeSeg = null, techSeg = null, appSeg = null, endUserSeg = null, distSeg = null, matSeg = null;
-  const assigned = new Set();
-
-  for (const seg of segments) {
-    const nameLower = seg.name.toLowerCase();
-    if (!typeSeg && (nameLower.includes('type') || nameLower.includes('product') || nameLower.includes('form') || nameLower.includes('grade'))) {
-      typeSeg = seg;
-      assigned.add(seg.name);
-    } else if (!techSeg && (nameLower.includes('tech') || nameLower.includes('process') || nameLower.includes('method'))) {
-      techSeg = seg;
-      assigned.add(seg.name);
-    } else if (!appSeg && (nameLower.includes('app') || nameLower.includes('end-use') || nameLower.includes('use'))) {
-      appSeg = seg;
-      assigned.add(seg.name);
-    } else if (!endUserSeg && (nameLower.includes('end user') || nameLower.includes('user') || nameLower.includes('consumer'))) {
-      endUserSeg = seg;
-      assigned.add(seg.name);
-    } else if (!distSeg && (nameLower.includes('distribut') || nameLower.includes('channel') || nameLower.includes('sales'))) {
-      distSeg = seg;
-      assigned.add(seg.name);
-    } else if (!matSeg && (nameLower.includes('material') || nameLower.includes('raw'))) {
-      matSeg = seg;
-      assigned.add(seg.name);
+  const typeKeys = ["type_segment_1", "type_segment_2", "type_segment_3"];
+  typeKeys.forEach((aiKey, i) => {
+    if (segments.length > 0 && segments[0].sub_segments && segments[0].sub_segments.length > i) {
+      payload[`{{${aiKey}}}`] = segments[0].sub_segments[i];
+    } else {
+      payload[`{{${aiKey}}}`] = val(aiKey, `${core} Type ${i + 1}`);
     }
-  }
+  });
 
-  const unassignedSegs = segments.filter(s => !assigned.has(s.name));
-  const slots = [
-    ["typeSeg", typeSeg],
-    ["techSeg", techSeg],
-    ["appSeg", appSeg],
-    ["endUserSeg", endUserSeg],
-    ["distSeg", distSeg],
-    ["matSeg", matSeg],
+  const techKeys = ["tech_segment_1", "tech_segment_2", "tech_segment_3"];
+  techKeys.forEach((aiKey, i) => {
+    if (segments.length > 1 && segments[1].sub_segments && segments[1].sub_segments.length > i) {
+      payload[`{{${aiKey}}}`] = segments[1].sub_segments[i];
+    } else {
+      payload[`{{${aiKey}}}`] = val(aiKey, `${core} Tech ${i + 1}`);
+    }
+  });
+
+  const appKeys = ["app_segment_1", "app_segment_2", "app_segment_3", "app_segment_4"];
+  appKeys.forEach((aiKey, i) => {
+    if (segments.length > 2 && segments[2].sub_segments && segments[2].sub_segments.length > i) {
+      payload[`{{${aiKey}}}`] = segments[2].sub_segments[i];
+    } else {
+      payload[`{{${aiKey}}}`] = val(aiKey, `${core} App ${i + 1}`);
+    }
+  });
+
+  const HARDCODED_CHAPTER_NAMES = new Set(["Type", "Technology", "Application"]);
+  const segMapping = [
+    [3, "seg4_name", ["seg4_sub1", "seg4_sub2", "seg4_sub3"]],
+    [4, "seg5_name", ["seg5_sub1", "seg5_sub2", "seg5_sub3"]],
+    [5, "seg6_name", ["seg6_sub1", "seg6_sub2", "seg6_sub3"]],
   ];
 
-  const resolved = {};
-  for (const [slotName, currentVal] of slots) {
-    if (!currentVal && unassignedSegs.length > 0) {
-      resolved[slotName] = unassignedSegs.shift();
+  for (const [idx, nameKey, subKeys] of segMapping) {
+    if (segments.length > idx && !HARDCODED_CHAPTER_NAMES.has(segments[idx].name)) {
+      payload[`{{${nameKey}}}`] = segments[idx].name;
     } else {
-      resolved[slotName] = currentVal;
+      payload[`{{${nameKey}}}`] = val(nameKey, `Segment ${idx + 1}`);
     }
-  }
 
-  typeSeg = resolved["typeSeg"];
-  techSeg = resolved["techSeg"];
-  appSeg = resolved["appSeg"];
-  endUserSeg = resolved["endUserSeg"];
-  distSeg = resolved["distSeg"];
-  matSeg = resolved["matSeg"];
-
-  const getSub = (segObj, idx, fallback) => {
-    if (segObj && segObj.sub_segments && segObj.sub_segments.length > idx) {
-      return segObj.sub_segments[idx];
-    }
-    return fallback;
-  };
-
-  // Map Type
-  payload["{{type_segment_1}}"] = getSub(typeSeg, 0, `${core} Type 1`);
-  payload["{{type_segment_2}}"] = getSub(typeSeg, 1, `${core} Type 2`);
-  payload["{{type_segment_3}}"] = getSub(typeSeg, 2, `${core} Type 3`);
-
-  // Map Tech
-  payload["{{tech_segment_1}}"] = getSub(techSeg, 0, `${core} Technology 1`);
-  payload["{{tech_segment_2}}"] = getSub(techSeg, 1, `${core} Technology 2`);
-  payload["{{tech_segment_3}}"] = getSub(techSeg, 2, `${core} Technology 3`);
-
-  // Map App
-  payload["{{app_segment_1}}"] = getSub(appSeg, 0, `${core} Application 1`);
-  payload["{{app_segment_2}}"] = getSub(appSeg, 1, `${core} Application 2`);
-  payload["{{app_segment_3}}"] = getSub(appSeg, 3, `${core} Application 3`);
-  payload["{{app_segment_4}}"] = getSub(appSeg, 3, getSub(appSeg, 0, `${core} Application 4`));
-
-  // Map Seg4 (End User)
-  const seg4Name = endUserSeg ? endUserSeg.name : "End User";
-  payload["{{seg4_name}}"] = seg4Name;
-  payload["{{seg4_sub1}}"] = getSub(endUserSeg, 0, `${seg4Name} 1`);
-  payload["{{seg4_sub2}}"] = getSub(endUserSeg, 1, `${seg4Name} 2`);
-  payload["{{seg4_sub3}}"] = getSub(endUserSeg, 2, `${seg4Name} 3`);
-
-  // Map Seg5 (Distribution Channel)
-  const seg5Name = distSeg ? distSeg.name : "Distribution Channel";
-  payload["{{seg5_name}}"] = seg5Name;
-  payload["{{seg5_sub1}}"] = getSub(distSeg, 0, `${seg5Name} 1`);
-  payload["{{seg5_sub2}}"] = getSub(distSeg, 1, `${seg5Name} 2`);
-  payload["{{seg5_sub3}}"] = getSub(distSeg, 2, `${seg5Name} 3`);
-  payload["{{segment5_marketshare1}}"] = getSub(distSeg, 0, `${seg5Name} 1`);
-  payload["{{segment5_marketshare2}}"] = getSub(distSeg, 1, `${seg5Name} 2`);
-  payload["{{segment5_marketshare3}}"] = getSub(distSeg, 2, `${seg5Name} 3`);
-  payload["{{segment5_marketshare4}}"] = getSub(distSeg, 3, getSub(distSeg, 0, `${seg5Name} 4`));
-
-  // Map Seg6 (Material)
-  const seg6Name = matSeg ? matSeg.name : "Material";
-  payload["{{seg6_name}}"] = seg6Name;
-  payload["{{seg6_sub1}}"] = getSub(matSeg, 0, `${seg6Name} 1`);
-  payload["{{seg6_sub2}}"] = getSub(matSeg, 1, `${seg6Name} 2`);
-  payload["{{seg6_sub3}}"] = getSub(matSeg, 2, `${seg6Name} 3`);
-  payload["{{segment6_marketshare1}}"] = getSub(matSeg, 0, `${seg6Name} 1`);
-  payload["{{segment6_marketshare2}}"] = getSub(matSeg, 1, `${seg6Name} 2`);
-  payload["{{segment6_marketshare3}}"] = getSub(matSeg, 2, `${seg6Name} 3`);
-  payload["{{segment6_marketshare4}}"] = getSub(matSeg, 3, getSub(matSeg, 0, `${seg6Name} 4`));
-
-  // 3. Custom Requirements Mapping
-  if (customReqs.length > 0) {
-    const hasBodies = customReqs.some(r => r.body);
-    if (hasBodies) {
-      payload["{{ch4_custom_section_1_title}}"] = customReqs[0].title || `1. ${core} Custom Analysis 1`;
-      payload["{{ch4_custom_section_2_title}}"] = customReqs[0].body || "";
-      if (customReqs.length > 1) {
-        payload["{{ch4_custom_section_3_title}}"] = customReqs[1].title || `2. ${core} Custom Analysis 2`;
-        payload["{{ch4_custom_section_4_title}}"] = customReqs[1].body || "";
+    subKeys.forEach((subKey, i) => {
+      if (segments.length > idx && segments[idx].sub_segments && segments[idx].sub_segments.length > i) {
+        payload[`{{${subKey}}}`] = segments[idx].sub_segments[i];
       } else {
-        payload["{{ch4_custom_section_3_title}}"] = "";
-        payload["{{ch4_custom_section_4_title}}"] = "";
+        payload[`{{${subKey}}}`] = val(subKey, `Sub-Segment ${i + 1}`);
       }
-    } else {
-      for (let i = 1; i <= 4; i++) {
-        payload[`{{ch4_custom_section_${i}_title}}`] = customReqs.length >= i ? customReqs[i - 1].title : "";
-      }
-    }
-    payload["{{ch4_custom_subsection_4_1_title}}"] = "Market Trends and Forecast 2024\u20112029";
-  } else {
-    for (let i = 1; i <= 4; i++) {
-      payload[`{{ch4_custom_section_${i}_title}}`] = `${core} Custom Requirement ${i}`;
-    }
-    payload["{{ch4_custom_subsection_4_1_title}}"] = "Market Trends and Forecast 2024\u20112029";
+    });
   }
+
+  const customReqs = marketInput.custom_sections || [];
+  for (let i = 1; i <= 4; i++) {
+    const key = `{{ch4_custom_section_${i}_title}}`;
+    if (customReqs.length >= i) {
+      payload[key] = customReqs[i - 1].title || customReqs[i - 1];
+    } else {
+      payload[key] = `Client Requirement ${i}`;
+    }
+  }
+
+  payload["{{ch4_custom_subsection_4_1_title}}"] = val(
+    "ch4_custom_subsection_4_1_title", "Client Requirement 4.1"
+  );
 
   return payload;
 }
@@ -427,18 +393,49 @@ async function renderReportDocx(templateBuffer, placeholderDict, adjustCoverTitl
   for (const filename of files) {
     if (filename.endsWith('.xml') || filename.endsWith('.rels')) {
       let content = await zip.file(filename).async("text");
-      
+
+      const escapedDict = {};
       for (const [key, val] of Object.entries(placeholderDict)) {
+        escapedDict[key] = String(val)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&apos;');
+      }
+
+      // Pass 1: Literal replacement
+      for (const [key, escapedVal] of Object.entries(escapedDict)) {
         if (content.includes(key)) {
-          const escapedVal = String(val)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;');
           content = content.split(key).join(escapedVal);
         }
       }
+
+      // Pass 2: Character-level split XML tag matching
+      const tagPattern = "(?:<[^>]+>)*\\s*";
+      for (const [key, escapedVal] of Object.entries(escapedDict)) {
+        const rawKey = key.replace(/^\{\{|\}\}$/g, "").trim();
+        if (!rawKey) continue;
+
+        let patternStr = "\\{\\{\\s*";
+        for (const ch of rawKey) {
+          patternStr += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + tagPattern;
+        }
+        patternStr += "\\}\\}";
+
+        const regex = new RegExp(patternStr, "gi");
+        content = content.replace(regex, escapedVal);
+      }
+
+      // Pass 3: General split XML tag matching regex
+      const splitRegex = /\{\{(?:<[^>]+>|[^}])*?\}\}/g;
+      content = content.replace(splitRegex, (match) => {
+        const cleanKey = "{{" + match.replace(/<[^>]+>/g, "").replace(/^\{\{|\}\}$/g, "").trim() + "}}";
+        return escapedDict[cleanKey] !== undefined ? escapedDict[cleanKey] : "";
+      });
+
+      // Pass 4: Clean remaining unreplaced {{...}} placeholders
+      content = content.replace(/\{\{[^}]+\}\}/g, "");
 
       if (adjustCoverTitle && filename === 'word/document.xml') {
         content = content.replace(/w:sz w:val="88"/g, 'w:sz w:val="58"');
@@ -533,7 +530,7 @@ exports.handler = async (event, context) => {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: process.env.MODEL || "nvidia/nemotron-3-nano-30b-a3b:free",
+            model: process.env.MODEL || "nvidia/nemotron-3-nano-30b-a3b",
             messages: [{ role: "user", content: prompt }]
           })
         });
@@ -548,7 +545,7 @@ exports.handler = async (event, context) => {
     }
 
     if (!aiContent) {
-      aiContent = getFallbackContent(marketInput.market_name);
+      aiContent = getFallbackContent(marketInput.market_name, marketInput);
     }
 
     // Step 3: Build payload

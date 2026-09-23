@@ -145,12 +145,14 @@ KNOWN_REGIONS = [
 
 def parse_segmentation_docx_content(paragraphs) -> Dict[str, Any]:
     """
-    Parse a list of paragraph objects (from python-docx or simple XML elements) to extract:
+    Parse a list of paragraph objects (from python-docx) to extract:
     - market_title
     - segmentations: dict of {segment_name: [sub_segments]}
     - regions: dict of {region_name: [countries]}
     - key_players: list of player names
     - custom_requirements: list of requirement strings
+
+    Returns a dict with all parsed info.
     """
     market_title = ""
     segmentations = {}  # OrderedDict of {seg_name: [sub_segs]}
@@ -169,87 +171,65 @@ def parse_segmentation_docx_content(paragraphs) -> Dict[str, Any]:
 
         style = p.style.name if (hasattr(p, "style") and p.style) else "Normal"
 
-        # Check for inline segment definitions e.g. "1. Type: Porcelain, Glazed..." or "By Type: Porcelain, Glazed..."
-        inline_seg_match = re.match(r"^(?:\d+[\.\)]\s*|By\s+)?([A-Za-z0-9\s/&\-]+?)\s*:\s*(.+)$", text, re.IGNORECASE)
-        if inline_seg_match:
-            header_candidate = inline_seg_match.group(1).strip()
-            values_str = inline_seg_match.group(2).strip()
-
-            header_lower = header_candidate.lower()
-            if "player" in header_lower or "company" in header_lower or "competitor" in header_lower:
-                players = [x.strip() for x in re.split(r"[,;\n]", values_str) if x.strip()]
-                key_players.extend(players)
-                continue
-            elif "custom" in header_lower or "requirement" in header_lower:
-                reqs = [x.strip() for x in re.split(r"[;\n]", values_str) if x.strip()]
-                custom_requirements.extend(reqs)
-                continue
-            elif not any(k in header_lower for k in ["global", "market", "segmentation", "report", "source"]):
-                subs = [x.strip() for x in re.split(r"[,;\n]", values_str) if x.strip()]
-                if subs:
-                    segmentations[header_candidate] = subs
-                    continue
-
         # Heading 1 → market title
-        if style in ("Heading 1",) or (not market_title and style.startswith("Heading")):
-            if "market" in text.lower() or "segmentation" in text.lower():
-                market_title = text
-                continue
+        if style in ("Heading 1",) or (
+            not market_title and style.startswith("Heading")
+        ):
+            market_title = text
+            continue
 
-        text_lower = text.lower()
+        # Heading 2 or section-like patterns
+        is_heading2 = style == "Heading 2"
+        is_by_section = text.startswith("By ")
+        is_named_section = text in (
+            "Key Players",
+            "Custom Requirements",
+            "Custom Requirement",
+            "Custom Requirements:",
+        )
 
-        # State detection
-        if re.search(r"\b(key\s+players?|top\s+companies|competitive\s+landscape|key\s+market\s+players)\b", text_lower):
-            state = "PLAYERS"
-            continue
-        elif re.search(r"\b(custom\s+requirements?|client\s+requirements?|special\s+sections?)\b", text_lower):
-            state = "CUSTOM"
-            continue
-        elif re.search(r"\b(by\s+region|regional\s+breakdown|geography|regional\s+analysis)\b", text_lower):
-            state = "REGION"
-            current_region = None
-            continue
-        elif state != "CUSTOM" and (style == "Heading 2" or text.startswith("By ") or re.match(r"^(?:Chapter\s+\d+|Segment|\d+[\.\)])", text, re.IGNORECASE)):
-            state = "SEGMENT"
-            seg_name = re.sub(r"^(?:By\s+|Chapter\s+\d+:?\s*|\d+[\.\)]\s*)", "", text, flags=re.IGNORECASE).strip().rstrip(":")
-            if seg_name and not any(k in seg_name.lower() for k in ["region", "player", "company", "custom", "requirement"]):
+        if is_heading2 or is_by_section or is_named_section:
+            if text.startswith("By Region") or text == "By Region":
+                state = "REGION"
+                current_region = None
+            elif text in ("Key Players", "Key Players:"):
+                state = "PLAYERS"
+            elif text in (
+                "Custom Requirements",
+                "Custom Requirement",
+                "Custom Requirements:",
+            ):
+                state = "CUSTOM"
+            elif text.startswith("By "):
+                state = "SEGMENT"
+                seg_name = text.replace("By ", "").strip().rstrip(":")
                 current_segment = seg_name
                 if current_segment not in segmentations:
                     segmentations[current_segment] = []
-                continue
+            else:
+                state = "OTHER"
+            continue
 
-        # Content parsing based on active state
+        # Parse based on state
         if state == "SEGMENT" and current_segment:
-            cleaned_val = re.sub(r"^[-•*]\s*", "", text).strip()
-            if cleaned_val and cleaned_val not in segmentations[current_segment]:
-                segmentations[current_segment].append(cleaned_val)
+            if text and text not in segmentations[current_segment]:
+                segmentations[current_segment].append(text)
 
         elif state == "PLAYERS":
-            cleaned_val = re.sub(r"^[-•*\d+.]\s*", "", text).strip()
-            if cleaned_val and cleaned_val not in key_players:
-                key_players.append(cleaned_val)
+            if text:
+                key_players.append(text)
 
         elif state == "CUSTOM":
-            # Check if this line is a title e.g. "1. Sustainable Construction Trends"
-            # or a description bullet under previous title
-            title_match = re.match(r"^\d+[\.\)]\s*(.+)", text)
-            if title_match:
-                custom_requirements.append({"title": text.strip(), "body": ""})
-            elif custom_requirements and isinstance(custom_requirements[-1], dict) and not custom_requirements[-1]["body"]:
-                custom_requirements[-1]["body"] = text.strip()
-            else:
-                cleaned_val = re.sub(r"^[-•*\d+.]\s*", "", text).strip()
-                if cleaned_val and not any(isinstance(r, dict) and r.get("title") == text for r in custom_requirements):
-                    custom_requirements.append({"title": text.strip(), "body": ""})
+            if text:
+                custom_requirements.append(text)
 
         elif state == "REGION":
+            # Distinguish region names from country names
             if text in KNOWN_REGIONS:
                 current_region = text
                 regions[current_region] = []
             elif current_region:
-                cleaned_val = re.sub(r"^[-•*\d+.]\s*", "", text).strip()
-                if cleaned_val:
-                    regions[current_region].append(cleaned_val)
+                regions[current_region].append(text)
 
     return {
         "market_title": market_title,
@@ -350,7 +330,7 @@ def parse_docx(docx_path: str) -> Optional[MarketInput]:
             parsed_segments.append(
                 {
                     "name": seg_name,
-                    "sub_segments": sub_segs,
+                    "sub_segments": sub_segs[:6],  # cap at 6 sub-segments per dimension
                 }
             )
 
@@ -366,12 +346,7 @@ def parse_docx(docx_path: str) -> Optional[MarketInput]:
 
         # Custom requirements → custom sections for Chapter 4
         custom_reqs = parsed.get("custom_requirements", [])
-        custom_sections = []
-        for r in custom_reqs[:10]:
-            if isinstance(r, dict):
-                custom_sections.append(r)
-            else:
-                custom_sections.append({"title": str(r), "body": ""})
+        custom_sections = [{"title": r, "body": ""} for r in custom_reqs[:10]]
 
         print(f"  Detected segments: {[s['name'] for s in parsed_segments]}")
         print(f"  Detected regions: {region_names}")
@@ -403,52 +378,3 @@ def parse_docx(docx_path: str) -> Optional[MarketInput]:
 
         traceback.print_exc()
         return None
-
-
-if __name__ == "__main__":
-    import sys
-
-    print("Extraction tests:")
-    tests = [
-        "Toothbrush Market Segmentation (USD Billion, 2025-2035)",
-        "Facewash Market Segmentation",
-        "Global Green Methanol Market",
-        "Sustainable Aviation Fuel Market Analysis",
-        "Global Battery Energy Storage System Market Segmentation (USD Billion, 2025-2035)",
-    ]
-    for test in tests:
-        result = extract_core_product_name(test)
-        print(f"  '{test}' -> '{result}'")
-
-    # Test filename-based fallback
-    print()
-    for fname in [
-        "lithium_ion_battery_input.docx",
-        "Global_Glycerin_Market_Segmentation.docx",
-        "my_custom_data.docx",
-        "input.docx",
-    ]:
-        base = os.path.splitext(os.path.basename(fname))[0]
-        base = re.sub(
-            r"[_\- ]*(segmentation|segment|input|template|market|report|data)$",
-            "",
-            base,
-            flags=re.IGNORECASE,
-        )
-        base = base.replace("_", " ").replace("-", " ").strip().title()
-        name = base if base else "Unknown Market"
-        print(
-            f"  '{fname}' -> filename fallback: '{name}' -> core: '{extract_core_product_name(name)}'"
-        )
-
-    print()
-    if len(sys.argv) > 1:
-        result = parse_docx(sys.argv[1])
-        if result:
-            print(f"\nParsed Result:")
-            print(f"  Market Name: {result.market_name}")
-            print(f"  Upper: {result.market_name_upper}")
-            print(f"  Segments: {[s['name'] for s in result.parsed_segments]}")
-            print(f"  Regions: {result.parsed_regions}")
-            print(f"  Region 1 Countries: {result.parsed_region1_countries}")
-            print(f"  Players: {result.parsed_players}")
