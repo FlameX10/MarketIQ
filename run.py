@@ -71,66 +71,52 @@ def sanitize_filename(name: str) -> str:
 
 
 def _get_fallback_content(market_input: MarketInput) -> dict:
-    """Get fallback content derived from input DOCX segmentations."""
+    """Get fallback content when API is unavailable."""
     core = market_input.market_name
-    segments = market_input.parsed_segments or []
-
-    def _get_sub(seg_idx: int, sub_idx: int, fallback: str) -> str:
-        if len(segments) > seg_idx:
-            subs = segments[seg_idx].get("sub_segments", [])
-            if len(subs) > sub_idx:
-                return subs[sub_idx]
-        return fallback
-
-    def _get_seg_name(seg_idx: int, fallback: str) -> str:
-        if len(segments) > seg_idx:
-            return segments[seg_idx].get("name", fallback)
-        return fallback
 
     return {
-        "type_segment_1": _get_sub(0, 0, f"{core} Type 1"),
-        "type_segment_2": _get_sub(0, 1, f"{core} Type 2"),
-        "type_segment_3": _get_sub(0, 2, f"{core} Type 3"),
-        "tech_segment_1": _get_sub(1, 0, f"{core} Tech 1"),
-        "tech_segment_2": _get_sub(1, 1, f"{core} Tech 2"),
-        "tech_segment_3": _get_sub(1, 2, f"{core} Tech 3"),
-        "app_segment_1": _get_sub(2, 0, f"{core} App 1"),
-        "app_segment_2": _get_sub(2, 1, f"{core} App 2"),
-        "app_segment_3": _get_sub(2, 2, f"{core} App 3"),
-        "app_segment_4": _get_sub(2, 3, _get_sub(2, 0, f"{core} App 4")),
-        "co1_name": f"Global {core} Leaders",
-        "co2_name": f"{core} Innovations Inc",
-        "co3_name": f"Apex {core} Solutions",
-        "co4_name": f"Prime {core} Corp",
-        "co5_name": f"Vanguard {core}",
-        "co6_name": f"United {core}",
-        "co7_name": f"International {core}",
-        "co8_name": f"Strategic {core}",
-        "co9_name": f"Pioneer {core}",
-        "co10_name": f"Global {core} Enterprise",
-        "co1_segment_1_name": f"Core {core} Products",
-        "co1_segment_2_name": f"{core} Services & Accessories",
-        "seg4_name": _get_seg_name(3, f"{core} Segment 4"),
-        "seg4_sub1": _get_sub(3, 0, "Sub-Segment 1"),
-        "seg4_sub2": _get_sub(3, 1, "Sub-Segment 2"),
-        "seg4_sub3": _get_sub(3, 2, "Sub-Segment 3"),
-        "seg5_name": _get_seg_name(4, f"{core} Segment 5"),
-        "seg5_sub1": _get_sub(4, 0, "Sub-Segment 1"),
-        "seg5_sub2": _get_sub(4, 1, "Sub-Segment 2"),
-        "seg5_sub3": _get_sub(4, 2, "Sub-Segment 3"),
-        "segment5_marketshare1": _get_sub(4, 0, "Sub-Segment 1"),
-        "segment5_marketshare2": _get_sub(4, 1, "Sub-Segment 2"),
-        "segment5_marketshare3": _get_sub(4, 2, "Sub-Segment 3"),
-        "segment5_marketshare4": _get_sub(4, 3, _get_sub(4, 0, "Sub-Segment 4")),
-        "seg6_name": _get_seg_name(5, f"{core} Segment 6"),
-        "seg6_sub1": _get_sub(5, 0, "Sub-Segment 1"),
-        "seg6_sub2": _get_sub(5, 1, "Sub-Segment 2"),
-        "seg6_sub3": _get_sub(5, 2, "Sub-Segment 3"),
-        "segment6_marketshare1": _get_sub(5, 0, "Sub-Segment 1"),
-        "segment6_marketshare2": _get_sub(5, 1, "Sub-Segment 2"),
-        "segment6_marketshare3": _get_sub(5, 2, "Sub-Segment 3"),
-        "segment6_marketshare4": _get_sub(5, 3, _get_sub(5, 0, "Sub-Segment 4")),
-        "ch4_custom_subsection_4_1_title": f"Strategic Analysis of {core} Market Opportunities",
+        "type_segment_1": f"{core} Type 1",
+        "type_segment_2": f"{core} Type 2",
+        "type_segment_3": f"{core} Type 3",
+        "tech_segment_1": f"{core} Tech 1",
+        "tech_segment_2": f"{core} Tech 2",
+        "tech_segment_3": f"{core} Tech 3",
+        "app_segment_1": f"{core} App 1",
+        "app_segment_2": f"{core} App 2",
+        "app_segment_3": f"{core} App 3",
+        "app_segment_4": f"{core} App 4",
+        "co1_name": "Featured Company",
+        "co2_name": "Competitor 2",
+        "co3_name": "Competitor 3",
+        "co4_name": "Competitor 4",
+        "co5_name": "Co5",
+        "co6_name": "Co6",
+        "co7_name": "Competitor 7",
+        "co8_name": "Co8",
+        "co9_name": "Co9",
+        "co10_name": "Co10",
+        "co1_segment_1_name": f"{core} Segment 1",
+        "co1_segment_2_name": f"{core} Segment 2",
+        "segment5_marketshare1": "Sub-Segment 1",
+        "segment5_marketshare2": "Sub-Segment 2",
+        "segment5_marketshare3": "Sub-Segment 3",
+        "segment6_marketshare1": "Sub-Segment 1",
+        "segment6_marketshare2": "Sub-Segment 2",
+        "segment6_marketshare3": "Sub-Segment 3",
+        "segment6_marketshare4": "Sub-Segment 4",
+        "seg4_name": f"{core} Segment 4",
+        "seg4_sub1": "Sub-Segment 1",
+        "seg4_sub2": "Sub-Segment 2",
+        "seg4_sub3": "Sub-Segment 3",
+        "seg5_name": f"{core} Segment 5",
+        "seg5_sub1": "Sub-Segment 1",
+        "seg5_sub2": "Sub-Segment 2",
+        "seg5_sub3": "Sub-Segment 3",
+        "seg6_name": f"{core} Segment 6",
+        "seg6_sub1": "Sub-Segment 1",
+        "seg6_sub2": "Sub-Segment 2",
+        "seg6_sub3": "Sub-Segment 3",
+        "ch4_custom_subsection_4_1_title": "Client Requirement 4.1",
     }
 
 
@@ -197,7 +183,6 @@ def main():
             market_input.market_name,
             market_input.market_name_title,
             market_input.custom_sections,
-            market_input.parsed_segments,
         )
 
         if ai_content:
@@ -250,11 +235,8 @@ def main():
         save_json(
             {
                 "market_name": market_input.market_name,
-                "market_name_upper": market_input.market_name_upper,
                 "generated_at": datetime.now().isoformat(),
-                "api_model": config["model"],
                 "ai_content": ai_content,
-                "payload": placeholder_dict,
             },
             output_json,
         )

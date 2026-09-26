@@ -68,8 +68,9 @@ def handle_api_request(method, body_str):
         ai_content = None
         api_key = config.get("openrouter_api_key", os.environ.get("OPENROUTER_API_KEY", ""))
         if use_api and api_key:
-            generator = AIGenerator(api_key=api_key, model=config.get("model", "nvidia/nemotron-3-nano-30b-a3b:free"))
-            ai_content = generator.generate(market_input.market_name, market_input.market_name_title, market_input.custom_sections, market_input.parsed_segments)
+            model_name = config.get("model") or os.environ.get("MODEL") or "openrouter/free"
+            generator = AIGenerator(api_key=api_key, model=model_name)
+            ai_content = generator.generate(market_input.market_name, market_input.market_name_title, market_input.custom_sections)
 
         if not ai_content:
             ai_content = _get_fallback_content(market_input)

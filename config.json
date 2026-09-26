@@ -1,6 +1,6 @@
 {
   "openrouter_api_key": "",
-  "model": "nvidia/nemotron-3-nano-30b-a3b:free",
+  "model": "openrouter/free",
   "cache_ttl_hours": 24,
   "max_retries": 3,
   "retry_delay": 2,
