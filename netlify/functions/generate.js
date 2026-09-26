@@ -277,6 +277,70 @@ function buildPayload(aiContent, marketInput) {
     return (ai[key] && String(ai[key]).trim()) ? String(ai[key]).trim() : fallback;
   }
 
+  function getSub(aiKey, segObj, idx, fallback) {
+    if (aiKey && ai[aiKey]) {
+      const aiVal = String(ai[aiKey]).trim();
+      const isGeneric = /type [123]|tech [123]|app [1234]/i.test(aiVal);
+      if (aiVal && (!isGeneric || !segObj)) return aiVal;
+    }
+    if (segObj && segObj.sub_segments && segObj.sub_segments.length > idx) {
+      return segObj.sub_segments[idx];
+    }
+    return fallback;
+  }
+
+  let typeSeg = null, techSeg = null, appSeg = null, endUserSeg = null, distSeg = null, matSeg = null;
+  const assigned = new Set();
+
+  for (const seg of segments) {
+    const nameLower = seg.name.toLowerCase();
+    if (!appSeg && (nameLower.includes('app') || nameLower.includes('end-use') || nameLower.includes('use') || nameLower.includes('application'))) {
+      appSeg = seg;
+      assigned.add(seg.name);
+    } else if (!typeSeg && (nameLower.includes('type') || nameLower.includes('product') || nameLower.includes('form') || nameLower.includes('grade'))) {
+      typeSeg = seg;
+      assigned.add(seg.name);
+    } else if (!techSeg && (nameLower.includes('tech') || nameLower.includes('process') || nameLower.includes('method') || nameLower.includes('manufacturing'))) {
+      techSeg = seg;
+      assigned.add(seg.name);
+    } else if (!endUserSeg && (nameLower.includes('end user') || nameLower.includes('user') || nameLower.includes('consumer'))) {
+      endUserSeg = seg;
+      assigned.add(seg.name);
+    } else if (!distSeg && (nameLower.includes('distribut') || nameLower.includes('channel') || nameLower.includes('sales'))) {
+      distSeg = seg;
+      assigned.add(seg.name);
+    } else if (!matSeg && (nameLower.includes('material') || nameLower.includes('wood') || nameLower.includes('raw'))) {
+      matSeg = seg;
+      assigned.add(seg.name);
+    }
+  }
+
+  const unassignedSegs = segments.filter(s => !assigned.has(s.name));
+  const slots = [
+    ["typeSeg", typeSeg],
+    ["techSeg", techSeg],
+    ["appSeg", appSeg],
+    ["endUserSeg", endUserSeg],
+    ["distSeg", distSeg],
+    ["matSeg", matSeg],
+  ];
+
+  const resolved = {};
+  for (const [slotName, currentVal] of slots) {
+    if (!currentVal && unassignedSegs.length > 0) {
+      resolved[slotName] = unassignedSegs.shift();
+    } else {
+      resolved[slotName] = currentVal;
+    }
+  }
+
+  typeSeg = resolved["typeSeg"];
+  techSeg = resolved["techSeg"];
+  appSeg = resolved["appSeg"];
+  endUserSeg = resolved["endUserSeg"];
+  distSeg = resolved["distSeg"];
+  matSeg = resolved["matSeg"];
+
   const payload = {
     "{{market_name}}": marketInput.market_name,
     "{{market_name_upper}}": marketInput.market_name_upper,
@@ -319,55 +383,44 @@ function buildPayload(aiContent, marketInput) {
     "{{segment6_marketshare4}}": val("segment6_marketshare4", "Sub-Segment 4"),
   };
 
-  const typeKeys = ["type_segment_1", "type_segment_2", "type_segment_3"];
-  typeKeys.forEach((aiKey, i) => {
-    if (segments.length > 0 && segments[0].sub_segments && segments[0].sub_segments.length > i) {
-      payload[`{{${aiKey}}}`] = segments[0].sub_segments[i];
-    } else {
-      payload[`{{${aiKey}}}`] = val(aiKey, `${core} Type ${i + 1}`);
-    }
-  });
+  payload["{{type_segment_1}}"] = getSub('type_segment_1', typeSeg, 0, `${core} Type 1`);
+  payload["{{type_segment_2}}"] = getSub('type_segment_2', typeSeg, 1, `${core} Type 2`);
+  payload["{{type_segment_3}}"] = getSub('type_segment_3', typeSeg, 2, `${core} Type 3`);
 
-  const techKeys = ["tech_segment_1", "tech_segment_2", "tech_segment_3"];
-  techKeys.forEach((aiKey, i) => {
-    if (segments.length > 1 && segments[1].sub_segments && segments[1].sub_segments.length > i) {
-      payload[`{{${aiKey}}}`] = segments[1].sub_segments[i];
-    } else {
-      payload[`{{${aiKey}}}`] = val(aiKey, `${core} Tech ${i + 1}`);
-    }
-  });
+  payload["{{tech_segment_1}}"] = getSub('tech_segment_1', techSeg, 0, `${core} Tech 1`);
+  payload["{{tech_segment_2}}"] = getSub('tech_segment_2', techSeg, 1, `${core} Tech 2`);
+  payload["{{tech_segment_3}}"] = getSub('tech_segment_3', techSeg, 2, `${core} Tech 3`);
 
-  const appKeys = ["app_segment_1", "app_segment_2", "app_segment_3", "app_segment_4"];
-  appKeys.forEach((aiKey, i) => {
-    if (segments.length > 2 && segments[2].sub_segments && segments[2].sub_segments.length > i) {
-      payload[`{{${aiKey}}}`] = segments[2].sub_segments[i];
-    } else {
-      payload[`{{${aiKey}}}`] = val(aiKey, `${core} App ${i + 1}`);
-    }
-  });
+  payload["{{app_segment_1}}"] = getSub('app_segment_1', appSeg, 0, `${core} App 1`);
+  payload["{{app_segment_2}}"] = getSub('app_segment_2', appSeg, 1, `${core} App 2`);
+  payload["{{app_segment_3}}"] = getSub('app_segment_3', appSeg, 2, `${core} App 3`);
+  payload["{{app_segment_4}}"] = getSub('app_segment_4', appSeg, 3, getSub('app_segment_1', appSeg, 0, `${core} App 4`));
 
-  const HARDCODED_CHAPTER_NAMES = new Set(["Type", "Technology", "Application"]);
-  const segMapping = [
-    [3, "seg4_name", ["seg4_sub1", "seg4_sub2", "seg4_sub3"]],
-    [4, "seg5_name", ["seg5_sub1", "seg5_sub2", "seg5_sub3"]],
-    [5, "seg6_name", ["seg6_sub1", "seg6_sub2", "seg6_sub3"]],
-  ];
+  const seg4Name = endUserSeg ? endUserSeg.name : val('seg4_name', 'End User');
+  payload["{{seg4_name}}"] = seg4Name;
+  payload["{{seg4_sub1}}"] = getSub('seg4_sub1', endUserSeg, 0, `${seg4Name} 1`);
+  payload["{{seg4_sub2}}"] = getSub('seg4_sub2', endUserSeg, 1, `${seg4Name} 2`);
+  payload["{{seg4_sub3}}"] = getSub('seg4_sub3', endUserSeg, 2, `${seg4Name} 3`);
 
-  for (const [idx, nameKey, subKeys] of segMapping) {
-    if (segments.length > idx && !HARDCODED_CHAPTER_NAMES.has(segments[idx].name)) {
-      payload[`{{${nameKey}}}`] = segments[idx].name;
-    } else {
-      payload[`{{${nameKey}}}`] = val(nameKey, `Segment ${idx + 1}`);
-    }
+  const seg5Name = distSeg ? distSeg.name : val('seg5_name', 'Distribution Channel');
+  payload["{{seg5_name}}"] = seg5Name;
+  payload["{{seg5_sub1}}"] = getSub('seg5_sub1', distSeg, 0, `${seg5Name} 1`);
+  payload["{{seg5_sub2}}"] = getSub('seg5_sub2', distSeg, 1, `${seg5Name} 2`);
+  payload["{{seg5_sub3}}"] = getSub('seg5_sub3', distSeg, 2, `${seg5Name} 3`);
+  payload["{{segment5_marketshare1}}"] = getSub('segment5_marketshare1', distSeg, 0, `${seg5Name} 1`);
+  payload["{{segment5_marketshare2}}"] = getSub('segment5_marketshare2', distSeg, 1, `${seg5Name} 2`);
+  payload["{{segment5_marketshare3}}"] = getSub('segment5_marketshare3', distSeg, 2, `${seg5Name} 3`);
+  payload["{{segment5_marketshare4}}"] = getSub('segment5_marketshare4', distSeg, 3, getSub('segment5_marketshare1', distSeg, 0, `${seg5Name} 4`));
 
-    subKeys.forEach((subKey, i) => {
-      if (segments.length > idx && segments[idx].sub_segments && segments[idx].sub_segments.length > i) {
-        payload[`{{${subKey}}}`] = segments[idx].sub_segments[i];
-      } else {
-        payload[`{{${subKey}}}`] = val(subKey, `Sub-Segment ${i + 1}`);
-      }
-    });
-  }
+  const seg6Name = matSeg ? matSeg.name : val('seg6_name', 'Material');
+  payload["{{seg6_name}}"] = seg6Name;
+  payload["{{seg6_sub1}}"] = getSub('seg6_sub1', matSeg, 0, `${seg6Name} 1`);
+  payload["{{seg6_sub2}}"] = getSub('seg6_sub2', matSeg, 1, `${seg6Name} 2`);
+  payload["{{seg6_sub3}}"] = getSub('seg6_sub3', matSeg, 2, `${seg6Name} 3`);
+  payload["{{segment6_marketshare1}}"] = getSub('segment6_marketshare1', matSeg, 0, `${seg6Name} 1`);
+  payload["{{segment6_marketshare2}}"] = getSub('segment6_marketshare2', matSeg, 1, `${seg6Name} 2`);
+  payload["{{segment6_marketshare3}}"] = getSub('segment6_marketshare3', matSeg, 2, `${seg6Name} 3`);
+  payload["{{segment6_marketshare4}}"] = getSub('segment6_marketshare4', matSeg, 3, getSub('segment6_marketshare1', matSeg, 0, `${seg6Name} 4`));
 
   const customReqs = marketInput.custom_sections || [];
   for (let i = 1; i <= 4; i++) {
@@ -522,7 +575,11 @@ exports.handler = async (event, context) => {
 
     if (use_api !== false && keyToUse) {
       try {
-        const prompt = `Generate market report content for ${marketInput.market_name_title}.\nReturn ONLY valid JSON format.`;
+        let segCtx = "";
+        if (marketInput.parsed_segments && marketInput.parsed_segments.length > 0) {
+          segCtx = "\nExtracted input segmentations from document:\n" + marketInput.parsed_segments.map(s => `- ${s.name}: ${(s.sub_segments || []).join(', ')}`).join('\n');
+        }
+        const prompt = `Generate market report content for ${marketInput.market_name_title}.${segCtx}\nReturn ONLY valid JSON format mapping these exact input segmentations to the fields. Do NOT invent generic segment categories.`;
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -530,7 +587,7 @@ exports.handler = async (event, context) => {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: process.env.MODEL || "nvidia/nemotron-3-nano-30b-a3b",
+            model: process.env.MODEL || "nvidia/nemotron-3-nano-30b-a3b:free",
             messages: [{ role: "user", content: prompt }]
           })
         });
