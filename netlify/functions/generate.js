@@ -672,9 +672,12 @@ exports.handler = async (event, context) => {
     const keyToUse = api_key || process.env.OPENROUTER_API_KEY;
 
     if (use_api !== false && keyToUse) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
       try {
         const prompt = buildFullPrompt(marketInput.market_name_title, marketInput);
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          signal: controller.signal,
           method: "POST",
           headers: {
             "Authorization": `Bearer ${keyToUse}`,
@@ -685,15 +688,17 @@ exports.handler = async (event, context) => {
             messages: [{ role: "user", content: prompt }]
           })
         });
+        clearTimeout(timeoutId);
         if (res.ok) {
           const json = await res.json();
-          const contentStr = json.choices[0].message.content;
+          const contentStr = json.choices[0].message ? json.choices[0].message.content : "";
           aiContent = parseJsonResponse(contentStr);
         } else {
           console.log("AI API response not ok:", res.status);
         }
       } catch (e) {
-        console.log("AI API call failed, using fallback content:", e.message);
+        clearTimeout(timeoutId);
+        console.log("AI API call timed out or failed:", e.message);
       }
     }
 
