@@ -510,6 +510,104 @@ function getHeaders() {
   };
 }
 
+function buildFullPrompt(marketNameTitle, marketInput) {
+  const core = extractCoreProductName(marketNameTitle);
+  let segCtx = "";
+  if (marketInput && marketInput.parsed_segments && marketInput.parsed_segments.length > 0) {
+    segCtx = "\n=== EXTRACTED INPUT SEGMENTATIONS FROM USER DOCUMENT ===\n";
+    for (const seg of marketInput.parsed_segments) {
+      const subs = (seg.sub_segments || []).join(", ");
+      segCtx += `- Dimension: ${seg.name} -> Sub-segments: ${subs}\n`;
+    }
+  }
+
+  return `You are generating structured data fields for a ${core} market report template. The template has hardcoded narrative — you only need to supply short labels and names.
+
+INPUT MARKET: "${marketNameTitle}"
+CORE PRODUCT: "${core}"
+${segCtx}
+
+Generate a JSON object with these exact fields (all short strings, max lengths noted). All values MUST be real, specific, and realistic for the ${core} industry. Do NOT use generic placeholders like "Company 1" or "Standard Grade".
+
+=== SEGMENT NAMES (for charts and tables) ===
+type_segment_1 (max 30 chars): First sub-segment of type/product dimension.
+type_segment_2 (max 35 chars): Second sub-segment of type/product dimension.
+type_segment_3 (max 50 chars): Third sub-segment of type/product dimension.
+tech_segment_1 (max 30 chars): First sub-segment of technology dimension.
+tech_segment_2 (max 30 chars): Second sub-segment of technology dimension.
+tech_segment_3 (max 40 chars): Third sub-segment of technology dimension.
+app_segment_1 (max 30 chars): First sub-segment of application dimension (e.g. Professional Tournaments for Tennis Ball).
+app_segment_2 (max 30 chars): Second sub-segment of application dimension (e.g. Recreational Leisure).
+app_segment_3 (max 30 chars): Third sub-segment of application dimension (e.g. Fitness & Conditioning).
+app_segment_4 (max 30 chars): Fourth sub-segment of application dimension.
+
+=== COMPANY NAMES (real top companies in the ${core} industry, e.g. Wilson, Penn, Dunlop for Tennis Ball) ===
+co1_name (max 20 chars): Top company in the ${core} industry.
+co2_name (max 20 chars): Second major company in the ${core} industry.
+co3_name (max 20 chars): Third company.
+co4_name (max 30 chars): Fourth company.
+co5_name (max 15 chars): Fifth company.
+co6_name (max 15 chars): Sixth company.
+co7_name (max 20 chars): Seventh company.
+co8_name (max 15 chars): Eighth company.
+co9_name (max 15 chars): Ninth company.
+co10_name (max 15 chars): Tenth company.
+
+=== CO1 SEGMENT NAMES ===
+co1_segment_1_name (max 50 chars): Primary business segment for ${core}.
+co1_segment_2_name (max 50 chars): Secondary business segment for ${core}.
+
+=== SEGMENT 4/5/6 NAMES AND SUB-SEGMENTS ===
+seg4_name (max 30 chars): Name of the 4th market dimension (e.g. Price Segment).
+seg4_sub1 (max 30 chars): First sub-segment within seg4 (e.g. Premium).
+seg4_sub2 (max 30 chars): Second sub-segment within seg4 (e.g. Mid-Range).
+seg4_sub3 (max 30 chars): Third sub-segment within seg4 (e.g. Budget).
+seg5_name (max 30 chars): Name of the 5th market dimension (e.g. Geography).
+seg5_sub1 (max 30 chars): First sub-segment within seg5 (e.g. North America).
+seg5_sub2 (max 30 chars): Second sub-segment within seg5 (e.g. Europe).
+seg5_sub3 (max 30 chars): Third sub-segment within seg5 (e.g. Asia-Pacific).
+seg6_name (max 30 chars): Name of the 6th market dimension (e.g. Distribution Channel).
+seg6_sub1 (max 30 chars): First sub-segment within seg6 (e.g. Online Retail).
+seg6_sub2 (max 30 chars): Second sub-segment within seg6 (e.g. Specialty Stores).
+seg6_sub3 (max 30 chars): Third sub-segment within seg6 (e.g. Mass Market).
+
+=== MARKET SHARE LABELS ===
+segment5_marketshare1 (max 30 chars): Label for seg5 market share chart.
+segment5_marketshare2 (max 30 chars): Label for seg5 market share chart.
+segment5_marketshare3 (max 30 chars): Label for seg5 market share chart.
+segment5_marketshare4 (max 30 chars): Label for seg5 market share chart.
+segment6_marketshare1 (max 30 chars): Label for seg6 market share chart.
+segment6_marketshare2 (max 30 chars): Label for seg6 market share chart.
+segment6_marketshare3 (max 30 chars): Label for seg6 market share chart.
+segment6_marketshare4 (max 30 chars): Label for seg6 market share chart.
+
+=== CUSTOM SECTION ===
+ch4_custom_subsection_4_1_title (max 50 chars): Title for custom subsection 4.1.
+
+Return ONLY valid JSON starting with { and ending with }. No markdown, no code block formatting, no explanation.`;
+}
+
+function parseJsonResponse(contentStr) {
+  if (!contentStr) return null;
+  let jsonStr = contentStr.trim();
+  if (jsonStr.includes("```")) {
+    const parts = jsonStr.split("```");
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith("{") || trimmed.includes("{")) {
+        jsonStr = trimmed;
+        break;
+      }
+    }
+  }
+  const start = jsonStr.indexOf("{");
+  const end = jsonStr.lastIndexOf("}");
+  if (start !== -1 && end !== -1 && end > start) {
+    jsonStr = jsonStr.slice(start, end + 1);
+  }
+  return JSON.parse(jsonStr);
+}
+
 exports.handler = async (event, context) => {
   const httpMethod = event.httpMethod || "GET";
 
@@ -575,11 +673,7 @@ exports.handler = async (event, context) => {
 
     if (use_api !== false && keyToUse) {
       try {
-        let segCtx = "";
-        if (marketInput.parsed_segments && marketInput.parsed_segments.length > 0) {
-          segCtx = "\nExtracted input segmentations from document:\n" + marketInput.parsed_segments.map(s => `- ${s.name}: ${(s.sub_segments || []).join(', ')}`).join('\n');
-        }
-        const prompt = `Generate market report content for ${marketInput.market_name_title}.${segCtx}\nReturn ONLY valid JSON format mapping these exact input segmentations to the fields. Do NOT invent generic segment categories.`;
+        const prompt = buildFullPrompt(marketInput.market_name_title, marketInput);
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -594,7 +688,9 @@ exports.handler = async (event, context) => {
         if (res.ok) {
           const json = await res.json();
           const contentStr = json.choices[0].message.content;
-          aiContent = JSON.parse(contentStr.replace(/```json|```/g, '').trim());
+          aiContent = parseJsonResponse(contentStr);
+        } else {
+          console.log("AI API response not ok:", res.status);
         }
       } catch (e) {
         console.log("AI API call failed, using fallback content:", e.message);
