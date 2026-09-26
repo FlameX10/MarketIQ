@@ -378,3 +378,52 @@ def parse_docx(docx_path: str) -> Optional[MarketInput]:
 
         traceback.print_exc()
         return None
+
+
+if __name__ == "__main__":
+    import sys
+
+    print("Extraction tests:")
+    tests = [
+        "Toothbrush Market Segmentation (USD Billion, 2025-2035)",
+        "Facewash Market Segmentation",
+        "Global Green Methanol Market",
+        "Sustainable Aviation Fuel Market Analysis",
+        "Global Battery Energy Storage System Market Segmentation (USD Billion, 2025-2035)",
+    ]
+    for test in tests:
+        result = extract_core_product_name(test)
+        print(f"  '{test}' -> '{result}'")
+
+    # Test filename-based fallback
+    print()
+    for fname in [
+        "lithium_ion_battery_input.docx",
+        "Global_Glycerin_Market_Segmentation.docx",
+        "my_custom_data.docx",
+        "input.docx",
+    ]:
+        base = os.path.splitext(os.path.basename(fname))[0]
+        base = re.sub(
+            r"[_\- ]*(segmentation|segment|input|template|market|report|data)$",
+            "",
+            base,
+            flags=re.IGNORECASE,
+        )
+        base = base.replace("_", " ").replace("-", " ").strip().title()
+        name = base if base else "Unknown Market"
+        print(
+            f"  '{fname}' -> filename fallback: '{name}' -> core: '{extract_core_product_name(name)}'"
+        )
+
+    print()
+    if len(sys.argv) > 1:
+        result = parse_docx(sys.argv[1])
+        if result:
+            print(f"\nParsed Result:")
+            print(f"  Market Name: {result.market_name}")
+            print(f"  Upper: {result.market_name_upper}")
+            print(f"  Segments: {[s['name'] for s in result.parsed_segments]}")
+            print(f"  Regions: {result.parsed_regions}")
+            print(f"  Region 1 Countries: {result.parsed_region1_countries}")
+            print(f"  Players: {result.parsed_players}")

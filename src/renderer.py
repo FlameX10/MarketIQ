@@ -125,13 +125,14 @@ class DOCXRenderer:
                 elif key in placeholder_dict:
                     escaped_dict[raw] = self.escape_xml(placeholder_dict[key])
 
-            # Process all XML and .rels files in the entire DOCX package
-            xml_files = []
-            for root_dir, dirs, files in os.walk(temp_dir):
-                for f in files:
-                    if f.endswith(".xml") or f.endswith(".rels"):
-                        rel_path = os.path.relpath(os.path.join(root_dir, f), temp_dir)
-                        xml_files.append(rel_path.replace("\\", "/"))
+            xml_files = ["word/document.xml", "word/header1.xml", "word/footer1.xml"]
+
+            # Also process all chart XML files
+            charts_dir = os.path.join(temp_dir, "word", "charts")
+            if os.path.isdir(charts_dir):
+                for f in sorted(os.listdir(charts_dir)):
+                    if f.endswith(".xml"):
+                        xml_files.append(f"word/charts/{f}")
 
             total_replacements = 0
             for xml_file in xml_files:
@@ -191,62 +192,44 @@ class DOCXRenderer:
                     zf.write(file_path, arcname)
 
     def _replace_in_xml(self, xml_path: str, placeholder_dict: Dict[str, str]) -> int:
-        """Replace placeholders in XML file content. Handles plain, split XML runs, shapes, and diagrams.
+        """Replace placeholders in XML file content. Handles both plain and split placeholders.
         Returns the number of replacements performed.
         """
         import re
 
+        # Load XML content
         with open(xml_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         replacement_count = 0
 
-        # Pass 1: Direct literal replacement
+        # First pass: replace plain placeholders (no inner XML tags)
         for placeholder, value in placeholder_dict.items():
             if placeholder in content:
                 count = content.count(placeholder)
                 content = content.replace(placeholder, value)
                 replacement_count += count
 
-        # Pass 2: Character-level split XML tag matching for every placeholder key
-        tag_pattern = r"(?:<[^>]+>)*\s*"
-        for placeholder, value in placeholder_dict.items():
-            key = placeholder.strip("{}")
-            if not key:
-                continue
-
-            char_regex_parts = ["\\{\\{\\s*"]
-            for char in key:
-                char_regex_parts.append(re.escape(char) + tag_pattern)
-            char_regex_parts.append("\\}\\}")
-
-            pattern_str = "".join(char_regex_parts)
-            regex = re.compile(pattern_str, re.IGNORECASE | re.DOTALL)
-
-            matches = list(regex.finditer(content))
-            for match in matches:
-                raw_match = match.group(0)
-                if raw_match in content:
-                    content = content.replace(raw_match, value)
-                    replacement_count += 1
-
-        # Pass 3: General split XML tag matching regex
-        split_pattern = re.compile(r"\{\{(?:<[^>]+>|[^}])*?\}\}", re.DOTALL)
-        for match in list(split_pattern.finditer(content)):
+        # Second pass: handle split placeholders containing XML tags
+        split_pattern = re.compile(r"\{\{(?:[^\}]*\u003c[^\u003e]+\u003e)+[^\}]*\}\}")
+        for match in split_pattern.finditer(content):
             raw = match.group(0)
-            clean_key = "{{" + re.sub(r"<[^>]+>", "", raw).strip("{}").strip() + "}}"
+            # Strip XML tags to get the clean placeholder key (including braces)
+            clean_key = re.sub(r"\u003c[^\u003e]+\u003e", "", raw)
             value = placeholder_dict.get(clean_key)
             if value:
                 content = content.replace(raw, value)
                 replacement_count += 1
 
-        # Pass 4: Clean up any remaining unreplaced {{...}} placeholders
-        leftover_pattern = re.compile(r"\{\{[^}]+\}\}")
+        # Final cleanup: remove any remaining unreplaced placeholders
+        leftover_pattern = re.compile(r"\{\{[^\}]+\}\}")
         leftovers = leftover_pattern.findall(content)
         if leftovers:
+            # Replace them with empty string (or you could keep the placeholder for debugging)
             content = leftover_pattern.sub("", content)
             replacement_count += len(leftovers)
 
+        # Write back modified XML
         with open(xml_path, "w", encoding="utf-8") as f:
             f.write(content)
 

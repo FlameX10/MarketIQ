@@ -5,6 +5,7 @@ Single-pass content generation for the 16-chapter template (30 data-only fields)
 
 import json
 import time
+import re
 from typing import Dict, Any, Optional
 from openai import OpenAI
 
@@ -76,23 +77,48 @@ def validate_and_truncate_content(content: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def extract_core_product_name(raw_name: str) -> str:
-    words_to_remove = [
+    if not raw_name:
+        return raw_name
+
+    name = raw_name
+    name = re.sub(r"\([^)]*\)", "", name)
+    name = re.sub(r"\[[^\]]*\]", "", name)
+    name = re.sub(r"\s+\d{4}.*$", "", name)
+
+    prefixes = [
         "Global ",
-        "Market ",
-        "Segmentation ",
-        "Industry ",
-        "Analysis ",
-        "Overview ",
+        "Worldwide ",
+        "International ",
+        "Regional ",
     ]
-    core_name = raw_name
-    for word in words_to_remove:
-        core_name = core_name.replace(word, "")
+    for prefix in prefixes:
+        if name.startswith(prefix):
+            name = name[len(prefix) :]
 
-    if not core_name.strip():
-        parts = raw_name.split()
-        core_name = " ".join(parts[:2]) if len(parts) > 1 else raw_name
+    words = name.split()
+    non_product_words = [
+        "Market",
+        "Markets",
+        "Segmentation",
+        "Segment",
+        "Industry",
+        "Analysis",
+        "Overview",
+        "Report",
+        "Study",
+        "Research",
+    ]
 
-    return core_name.strip()
+    core_words = []
+    for word in words:
+        if word in non_product_words:
+            break
+        core_words.append(word)
+
+    if not core_words:
+        core_words = words[:2] if len(words) >= 2 else words[:1]
+
+    return " ".join(core_words).strip()
 
 
 class AIGenerator:

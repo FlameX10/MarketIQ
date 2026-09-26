@@ -47,12 +47,16 @@ def load_config(config_path: str = "config.json") -> dict:
     load_env_file()
     config = {}
     if os.path.exists(config_path):
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
 
     env_key = os.environ.get("OPENROUTER_API_KEY")
     if env_key:
         config["openrouter_api_key"] = env_key
+
+    env_model = os.environ.get("MODEL")
+    if env_model:
+        config["model"] = env_model
 
     return config
 
@@ -148,8 +152,8 @@ def main():
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
     config = load_config(config_path)
     print(f"\nConfiguration loaded")
-    print(f"  Model: {config['model']}")
-    print(f"  Cache TTL: {config['cache_ttl_hours']} hours")
+    print(f"  Model: {config.get('model', 'openrouter/free')}")
+    print(f"  Cache TTL: {config.get('cache_ttl_hours', 24)} hours")
     print(f"  API Enabled: {use_api}")
 
     # Step 1: Parse input DOCX
@@ -163,7 +167,7 @@ def main():
 
     # Step 2: Check cache
     print("\n[2/5] Checking cache...")
-    cache = CacheManager(cache_dir="cache", ttl_hours=config["cache_ttl_hours"])
+    cache = CacheManager(cache_dir="cache", ttl_hours=config.get("cache_ttl_hours", 24))
     cached_content = cache.get(market_input.market_name_upper, market_input.base_year)
 
     if cached_content:
@@ -173,10 +177,10 @@ def main():
         # Step 3: Generate content via OpenRouter
         print("\n[3/5] Generating content via OpenRouter...")
         generator = AIGenerator(
-            api_key=config["openrouter_api_key"],
-            model=config["model"],
-            max_retries=config["max_retries"],
-            retry_delay=config["retry_delay"],
+            api_key=config.get("openrouter_api_key", ""),
+            model=config.get("model", "openrouter/free"),
+            max_retries=config.get("max_retries", 3),
+            retry_delay=config.get("retry_delay", 2),
         )
 
         ai_content = generator.generate(
@@ -235,8 +239,11 @@ def main():
         save_json(
             {
                 "market_name": market_input.market_name,
+                "market_name_upper": market_input.market_name_upper,
                 "generated_at": datetime.now().isoformat(),
+                "api_model": config.get("model", "openrouter/free"),
                 "ai_content": ai_content,
+                "payload": placeholder_dict,
             },
             output_json,
         )

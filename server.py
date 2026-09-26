@@ -78,7 +78,7 @@ def handle_api_request(method, body_str):
         payload = build_payload(ai_content, market_input)
         placeholder_dict = payload_to_dict(payload)
 
-        template_path = os.path.join(ROOT_DIR, config.get("template_file", "full_market_report_template_updated.docx"))
+        template_path = os.path.join(ROOT_DIR, config.get("template_file", "templates/master_template_v1.docx"))
         tmp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
         tmp_output_path = tmp_output.name
         tmp_output.close()
