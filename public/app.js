@@ -183,9 +183,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      // Handle non-JSON responses (e.g., 504 HTML error pages)
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`Server returned ${response.status}: ${errorText.substring(0, 200)}`);
+      }
+
       const resData = await response.json();
 
-      if (!response.ok || !resData.success) {
+      if (!resData.success) {
         throw new Error(resData.error || 'Server returned an error');
       }
 
