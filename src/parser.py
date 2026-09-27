@@ -170,11 +170,15 @@ def parse_segmentation_docx_content(paragraphs) -> Dict[str, Any]:
             continue
 
         style = p.style.name if (hasattr(p, "style") and p.style) else "Normal"
+        style_normalized = str(style).strip().lower().replace("_", " ").replace("-", " ")
 
-        # Heading 1 → market title
-        if style in ("Heading 1",) or (
-            not market_title and style.startswith("Heading")
-        ):
+        # Heading 1 → market title (handles "Heading 1", "Heading1", "heading 1", "title", etc.)
+        is_heading = (
+            style_normalized in ("heading 1", "heading1")
+            or (not market_title and "heading" in style_normalized)
+            or (not market_title and style_normalized in ("title",))
+        )
+        if is_heading:
             market_title = text
             continue
 
@@ -301,7 +305,32 @@ def parse_docx(docx_path: str) -> Optional[MarketInput]:
         # Extract and process results
         raw_market_name = parsed.get("market_title", "")
         if not raw_market_name:
-            # Fallback: try to extract from the filename
+            # Fallback: try to extract from the document's text content
+            if PYTHON_DOCX_AVAILABLE:
+                try:
+                    import docx as _docx_module
+                    doc = _docx_module.Document(docx_path)
+                    for p in doc.paragraphs:
+                        text = p.text.strip()
+                        if not text:
+                            continue
+                        lower = text.lower()
+                        if "market" in lower and "segmentation" in lower:
+                            name_match = re.match(r"(?:Global\s+)?([A-Za-z0-9\s\-–]+?)\s+Market\s+Segmentation", text, re.IGNORECASE)
+                            if name_match:
+                                raw_market_name = name_match.group(1)
+                                break
+                            title_match = re.match(r"Global\s+([A-Za-z0-9\s\-–]+?)\s+Market", text, re.IGNORECASE)
+                            if title_match:
+                                raw_market_name = title_match.group(1)
+                                break
+                    if raw_market_name:
+                        print(f"  Found market name from document content: '{raw_market_name}'")
+                except Exception:
+                    pass
+
+        if not raw_market_name:
+            # Final fallback: try to extract from the filename
             import re as _re
 
             base = os.path.splitext(os.path.basename(docx_path))[0]

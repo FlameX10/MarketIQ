@@ -6,8 +6,8 @@ Single-pass content generation for the 16-chapter template (30 data-only fields)
 import json
 import time
 import re
+import requests
 from typing import Dict, Any, Optional
-from openai import OpenAI
 
 
 LENGTH_LIMITS = {
@@ -131,10 +131,11 @@ class AIGenerator:
         max_retries: int = 3,
         retry_delay: float = 2.0,
     ):
-        self.client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+        self.api_key = api_key
         self.model = model
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.api_url = "https://openrouter.ai/api/v1/chat/completions"
 
     def generate(
         self,
@@ -151,32 +152,71 @@ class AIGenerator:
             try:
                 print(f"Generating content for {market_name}...")
 
-                response = self.client.chat.completions.create(
-                    model=self.model, messages=[{"role": "user", "content": prompt}]
+                response = requests.post(
+                    self.api_url,
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://marketiq.local",
+                        "X-Title": "MarketIQ Report Generator",
+                    },
+                    json={
+                        "model": self.model,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                    timeout=15,
                 )
 
-                message_content = response.choices[0].message.content
+                if response.status_code != 200:
+                    print(f"API error: status {response.status_code}, body: {response.text[:200]}")
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (attempt + 1))
+                    continue
+
+                res_json = response.json()
+                choices = res_json.get("choices")
+                if not choices or len(choices) == 0 or choices[0] is None:
+                    print(f"API error: empty choices in response, body: {str(res_json)[:200]}")
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (attempt + 1))
+                    continue
+
+                message = choices[0].get("message")
+                if message is None:
+                    print(f"API error: message is None, body: {str(res_json)[:200]}")
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (attempt + 1))
+                    continue
+
+                message_content = message.get("content")
                 content = str(message_content).strip() if message_content else ""
+
+                if not content:
+                    print(f"API error: empty content in response, body: {str(res_json)[:200]}")
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (attempt + 1))
+                    continue
 
                 parsed = self._parse_response(content)
 
                 if parsed:
                     validated = validate_and_truncate_content(parsed)
+                    print(f"AI generation successful on attempt {attempt + 1}")
                     return validated
+                else:
+                    print(f"AI parse returned None, attempt {attempt + 1}")
 
+            except requests.exceptions.Timeout:
+                print(f"API request timed out on attempt {attempt + 1}")
+            except requests.exceptions.ConnectionError as e:
+                print(f"API connection error on attempt {attempt + 1}: {e}")
             except json.JSONDecodeError as e:
                 print(f"JSON parse error: {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (attempt + 1))
-                else:
-                    return self._get_fallback_content(market_name, market_name_title)
-
             except Exception as e:
-                print(f"API error: {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (attempt + 1))
-                else:
-                    return self._get_fallback_content(market_name, market_name_title)
+                print(f"API error on attempt {attempt + 1}: {e}")
+
+            if attempt < self.max_retries - 1:
+                time.sleep(self.retry_delay * (attempt + 1))
 
         return self._get_fallback_content(market_name, market_name_title)
 
