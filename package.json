@@ -5,9 +5,15 @@
   "main": "server.py",
   "scripts": {
     "start": "python server.py",
-    "test": "python -m unittest discover tests"
+    "dev": "netlify dev",
+    "deploy": "netlify deploy --prod",
+    "test": "python -m unittest discover tests",
+    "postinstall": "npm install jszip"
   },
   "dependencies": {
     "jszip": "^3.10.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

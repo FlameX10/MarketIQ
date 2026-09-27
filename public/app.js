@@ -15,11 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const downloadDocxBtn = document.getElementById('downloadDocxBtn');
   const downloadJsonBtn = document.getElementById('downloadJsonBtn');
 
-  let selectedFileData = null; // { filename, base64 }
+  let selectedFileData = null;
   let selectedSampleName = null;
-  let generatedResult = null; // { filename, docx_base64, audit_json }
+  let generatedResult = null;
 
-  // Drag and drop handlers
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
     dropzone.addEventListener(eventName, preventDefaults, false);
   });
@@ -66,14 +65,12 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       selectedSampleName = null;
       clearSampleActiveState();
-
       selectedFileLabel.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
       selectedFileLabel.style.display = 'inline-block';
     };
     reader.readAsDataURL(file);
   }
 
-  // Sample cards click handler
   sampleCards.forEach(card => {
     card.addEventListener('click', () => {
       clearSampleActiveState();
@@ -90,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
     sampleCards.forEach(b => b.classList.remove('active'));
   }
 
-  // Stage status updater
   function setStage(stageId, status) {
     const el = document.getElementById(stageId);
     if (!el) return;
@@ -106,7 +102,29 @@ document.addEventListener('DOMContentLoaded', () => {
     errorBox.classList.add('hidden');
   }
 
-  // Generate Report Action
+  async function fetchWithRetry(url, options, retries = 2) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url, options);
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || contentType.includes('text/html')) {
+          if (i < retries - 1) {
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+          }
+        }
+        return response;
+      } catch (e) {
+        if (i < retries - 1) {
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw new Error('Max retries exceeded');
+  }
+
   generateBtn.addEventListener('click', async () => {
     if (!selectedFileData && !selectedSampleName) {
       alert('Please select or upload an input DOCX file first.');
@@ -116,11 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
     statusCard.classList.remove('hidden');
     statusCard.scrollIntoView({ behavior: 'smooth' });
     resetStages();
-
     generateBtn.disabled = true;
 
     try {
-      // Stage 1: Parse
       setStage('stageParse', 'running');
       progressBar.style.width = '25%';
 
@@ -135,14 +151,12 @@ document.addEventListener('DOMContentLoaded', () => {
         payload.sample_name = selectedSampleName;
       }
 
-      // Stage 2: AI Generation
       setTimeout(() => {
         setStage('stageParse', 'success');
         setStage('stageAi', 'running');
         progressBar.style.width = '50%';
       }, 500);
 
-      // Stage 3 & 4
       setTimeout(() => {
         setStage('stageAi', 'success');
         setStage('stagePayload', 'running');
@@ -150,19 +164,19 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBar.style.width = '85%';
       }, 1200);
 
-      // Send Request to API endpoint (with fallback to /.netlify/functions/generate)
+      // Try /api/generate first (redirects via netlify.toml to serverless function)
       let apiEndpoint = '/api/generate';
-      let response = await fetch(apiEndpoint, {
+      let response = await fetchWithRetry(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       const contentType = response.headers.get('content-type') || '';
+      // If redirect returned HTML or failed, try direct Netlify function path
       if (!response.ok || contentType.includes('text/html')) {
-        // Fallback to Netlify function direct path if redirect returned HTML
         apiEndpoint = '/.netlify/functions/generate';
-        response = await fetch(apiEndpoint, {
+        response = await fetchWithRetry(apiEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -175,7 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(resData.error || 'Server returned an error');
       }
 
-      // Complete stages
       setStage('stagePayload', 'success');
       setStage('stageRender', 'success');
       progressBar.style.width = '100%';
@@ -193,7 +206,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Download DOCX file trigger
   downloadDocxBtn.addEventListener('click', () => {
     if (!generatedResult || !generatedResult.docx_base64) return;
 
@@ -215,7 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.removeChild(link);
   });
 
-  // Download JSON audit trigger
   downloadJsonBtn.addEventListener('click', () => {
     if (!generatedResult || !generatedResult.audit_json) return;
 
