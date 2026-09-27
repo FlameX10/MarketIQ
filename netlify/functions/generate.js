@@ -168,9 +168,19 @@ function parseWpTElements(documentXml) {
   return textMatches.map(m => m.replace(/<[^>]+>/g, '')).join(' ');
 }
 
+function normalizeStyleName(style) {
+  if (!style || style === 'Normal') return 'Normal';
+  const s = String(style).trim();
+  if (/^Heading\s*1$/i.test(s) || /^Heading1$/i.test(s)) return 'Heading 1';
+  if (/^Heading\s*2$/i.test(s) || /^Heading2$/i.test(s)) return 'Heading 2';
+  if (/^Heading\s*3$/i.test(s) || /^Heading3$/i.test(s)) return 'Heading 3';
+  return s;
+}
+
 function getStyleFromParagraphXml(pXml) {
   const styleMatch = pXml.match(/<w:pStyle[^>]*w:val="([^"]+)"/);
-  return styleMatch ? styleMatch[1] : 'Normal';
+  const rawStyle = styleMatch ? styleMatch[1] : 'Normal';
+  return normalizeStyleName(rawStyle);
 }
 
 function getParaTextFromXml(pXml) {
@@ -329,7 +339,21 @@ async function parseDocxBuffer(buffer) {
   }
 
   if (!marketTitle) {
-    marketName = 'Market Research Report';
+    const allTextMatch = documentXml.match(/<w:t[^>]*>(.*?)<\/w:t>/g) || [];
+    const allText = allTextMatch.map(m => m.replace(/<[^>]+>/g, '')).join(' ');
+    const globalMatch = allText.match(/(?:Global\s+)?([A-Za-z0-9\s\-–]+?)\s+Market\s+Segmentation/i);
+    if (globalMatch && globalMatch[1]) {
+      marketName = extractCoreProductName(globalMatch[1]);
+    } else {
+      const titleMatch = allText.match(/Global\s+([A-Za-z0-9\s\-–]+?)\s+Market/i);
+      if (titleMatch && titleMatch[1]) {
+        marketName = extractCoreProductName(titleMatch[1]);
+      } else {
+        const base = allText.replace(/[_-]/g, ' ').trim();
+        marketName = extractCoreProductName(base) || 'Market Research Report';
+      }
+    }
+    console.log(`[parseDocxBuffer] Fallback market name from text: "${marketName}"`);
   }
 
   return {
@@ -370,11 +394,23 @@ function buildPayload(aiContent, marketInput) {
     if (aiKey && ai[aiKey]) {
       const aiVal = String(ai[aiKey]).trim();
       const isGeneric = /type [123]|tech [123]|app [1234]/i.test(aiVal);
-      if (aiVal && (!isGeneric || !segObj)) return aiVal;
+      if (aiVal && !isGeneric) {
+        console.log(`[buildPayload] Using AI value for ${aiKey}: "${aiVal}"`);
+        return aiVal;
+      }
+      if (aiVal && isGeneric && !segObj) {
+        console.log(`[buildPayload] AI value generic, no segObj, using fallback for ${aiKey}: "${fallback}"`);
+        return fallback;
+      }
+      console.log(`[buildPayload] AI value generic (${aiVal}) for ${aiKey}, falling back to segObj`);
+    } else {
+      console.log(`[buildPayload] No AI content for ${aiKey}, using segObj or fallback`);
     }
     if (segObj && segObj.sub_segments && segObj.sub_segments.length > idx) {
+      console.log(`[buildPayload] Using segObj.sub_segments[${idx}] for ${aiKey}: "${segObj.sub_segments[idx]}"`);
       return segObj.sub_segments[idx];
     }
+    console.log(`[buildPayload] Using fallback for ${aiKey}: "${fallback}"`);
     return fallback;
   }
 
@@ -650,7 +686,10 @@ Return ONLY valid JSON starting with { and ending with }. No markdown, no code b
 }
 
 function parseJsonResponse(contentStr) {
-  if (!contentStr) return null;
+  if (!contentStr) {
+    console.log('[parseJsonResponse] Input is null or empty');
+    return null;
+  }
   let jsonStr = contentStr.trim();
   if (jsonStr.includes('```')) {
     const parts = jsonStr.split('```');
@@ -667,7 +706,15 @@ function parseJsonResponse(contentStr) {
   if (start !== -1 && end !== -1 && end > start) {
     jsonStr = jsonStr.slice(start, end + 1);
   }
-  return JSON.parse(jsonStr);
+  try {
+    const result = JSON.parse(jsonStr);
+    console.log('[parseJsonResponse] Successfully parsed JSON');
+    return result;
+  } catch (e) {
+    console.log(`[parseJsonResponse] JSON.parse failed: ${e.message}`);
+    console.log(`[parseJsonResponse] Raw content snippet: ${jsonStr.substring(0, 200)}...`);
+    return null;
+  }
 }
 
 exports.handler = async (event, context) => {
@@ -725,6 +772,8 @@ exports.handler = async (event, context) => {
     }
 
     const marketInput = await parseDocxBuffer(inputBuffer);
+    console.log(`[parseDocxBuffer] Parsed market_name: "${marketInput.market_name}"`);
+    console.log(`[parseDocxBuffer] Parsed segments: ${marketInput.parsed_segments.length}, players: ${marketInput.parsed_players.length}, custom_sections: ${marketInput.custom_sections.length}`);
 
     let aiContent = null;
     const keyToUse = api_key || process.env.OPENROUTER_API_KEY || config.openrouter_api_key;
