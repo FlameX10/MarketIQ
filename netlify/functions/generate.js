@@ -728,41 +728,66 @@ exports.handler = async (event, context) => {
 
     let aiContent = null;
     const keyToUse = api_key || process.env.OPENROUTER_API_KEY || config.openrouter_api_key;
+    const modelName = process.env.MODEL || config.model || 'nvidia/nemotron-3-nano-30b-a3b:free';
 
     if (use_api !== false && keyToUse) {
-      const modelName = config.model || process.env.MODEL || 'nvidia/nemotron-3-nano-30b-a3b:free';
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7000);
-      try {
-        const prompt = buildFullPrompt(marketInput.market_name_title, marketInput);
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          signal: controller.signal,
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${keyToUse}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: modelName,
-            messages: [{ role: 'user', content: prompt }]
-          })
-        });
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          const json = await res.json();
-          const contentStr = json.choices[0].message ? json.choices[0].message.content : '';
-          aiContent = parseJsonResponse(contentStr);
-        } else {
-          console.log('AI API response not ok:', res.status);
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY = 1000;
+      const TIMEOUT_MS = 15000;
+
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        try {
+          const prompt = buildFullPrompt(marketInput.market_name_title, marketInput);
+          console.log(`[AI] Attempt ${attempt}/${MAX_RETRIES} calling OpenRouter with model: ${modelName}`);
+          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            signal: controller.signal,
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${keyToUse}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: modelName,
+              messages: [{ role: 'user', content: prompt }]
+            })
+          });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const json = await res.json();
+            const contentStr = json.choices[0].message ? json.choices[0].message.content : '';
+            if (contentStr && contentStr.trim()) {
+              aiContent = parseJsonResponse(contentStr);
+              if (aiContent) {
+                console.log(`[AI] Success on attempt ${attempt}/${MAX_RETRIES}`);
+                break;
+              } else {
+                console.log(`[AI] Attempt ${attempt}/${MAX_RETRIES}: Parsed JSON was null or empty`);
+              }
+            } else {
+              console.log(`[AI] Attempt ${attempt}/${MAX_RETRIES}: Empty response from API`);
+            }
+          } else {
+            console.log(`[AI] Attempt ${attempt}/${MAX_RETRIES}: Response not ok, status: ${res.status}`);
+          }
+        } catch (e) {
+          clearTimeout(timeoutId);
+          console.log(`[AI] Attempt ${attempt}/${MAX_RETRIES} failed: ${e.message}`);
         }
-      } catch (e) {
-        clearTimeout(timeoutId);
-        console.log('AI API call timed out or failed:', e.message);
+
+        if (attempt < MAX_RETRIES) {
+          console.log(`[AI] Retrying in ${RETRY_DELAY}ms...`);
+          await new Promise(r => setTimeout(r, RETRY_DELAY));
+        }
       }
     }
 
     if (!aiContent) {
+      console.log('[AI] All attempts failed, falling back to generic content');
       aiContent = getFallbackContent(marketInput.market_name, marketInput);
+    } else {
+      console.log('[AI] Using AI-generated content');
     }
 
     const payload = buildPayload(aiContent, marketInput);
