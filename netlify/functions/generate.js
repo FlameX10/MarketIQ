@@ -780,9 +780,9 @@ exports.handler = async (event, context) => {
     const modelName = process.env.MODEL || config.model || 'nvidia/nemotron-3-nano-30b-a3b:free';
 
     if (use_api !== false && keyToUse) {
-      const MAX_RETRIES = 3;
-      const RETRY_DELAY = 1000;
-      const TIMEOUT_MS = 15000;
+      const MAX_RETRIES = 2;
+      const RETRY_DELAY = 500;
+      const TIMEOUT_MS = 8000;
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         const controller = new AbortController();
