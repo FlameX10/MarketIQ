@@ -91,51 +91,55 @@ function sanitizeFilename(name) {
 }
 
 function getFallbackContent(marketName, marketInput) {
-  const core = marketName;
+  const core = marketName || 'Market';
+  const players = (marketInput && marketInput.parsed_players && marketInput.parsed_players.length > 0)
+    ? marketInput.parsed_players
+    : [];
+
   return {
-    type_segment_1: core + ' Type 1',
-    type_segment_2: core + ' Type 2',
-    type_segment_3: core + ' Type 3',
-    tech_segment_1: core + ' Tech 1',
-    tech_segment_2: core + ' Tech 2',
-    tech_segment_3: core + ' Tech 3',
-    app_segment_1: core + ' App 1',
-    app_segment_2: core + ' App 2',
-    app_segment_3: core + ' App 3',
-    app_segment_4: core + ' App 4',
-    co1_name: 'Featured Company',
-    co2_name: 'Competitor 2',
-    co3_name: 'Competitor 3',
-    co4_name: 'Competitor 4',
-    co5_name: 'Co5',
-    co6_name: 'Co6',
-    co7_name: 'Competitor 7',
-    co8_name: 'Co8',
-    co9_name: 'Co9',
-    co10_name: 'Co10',
-    co1_segment_1_name: core + ' Segment 1',
-    co1_segment_2_name: core + ' Segment 2',
-    segment5_marketshare1: 'Sub-Segment 1',
-    segment5_marketshare2: 'Sub-Segment 2',
-    segment5_marketshare3: 'Sub-Segment 3',
-    segment5_marketshare4: 'Sub-Segment 4',
-    segment6_marketshare1: 'Sub-Segment 1',
-    segment6_marketshare2: 'Sub-Segment 2',
-    segment6_marketshare3: 'Sub-Segment 3',
-    segment6_marketshare4: 'Sub-Segment 4',
-    seg4_name: core + ' Segment 4',
-    seg4_sub1: 'Sub-Segment 1',
-    seg4_sub2: 'Sub-Segment 2',
-    seg4_sub3: 'Sub-Segment 3',
-    seg5_name: core + ' Segment 5',
-    seg5_sub1: 'Sub-Segment 1',
-    seg5_sub2: 'Sub-Segment 2',
-    seg5_sub3: 'Sub-Segment 3',
-    seg6_name: core + ' Segment 6',
-    seg6_sub1: 'Sub-Segment 1',
-    seg6_sub2: 'Sub-Segment 2',
-    seg6_sub3: 'Sub-Segment 3',
-    ch4_custom_subsection_4_1_title: 'Client Requirement 4.1',
+    type_segment_1: `${core} Segment A`,
+    type_segment_2: `${core} Segment B`,
+    type_segment_3: `${core} Segment C`,
+    tech_segment_1: `${core} Tech A`,
+    tech_segment_2: `${core} Tech B`,
+    tech_segment_3: `${core} Tech C`,
+    app_segment_1: `${core} App A`,
+    app_segment_2: `${core} App B`,
+    app_segment_3: `${core} App C`,
+    app_segment_4: `${core} App D`,
+    co1_name: players[0] || `${core} Leader`,
+    co2_name: players[1] || `${core} Global Corp`,
+    co3_name: players[2] || `${core} Solutions Inc`,
+    co4_name: players[3] || `${core} Technologies`,
+    co5_name: players[4] || `${core} Systems`,
+    co6_name: players[5] || `${core} International`,
+    co7_name: players[6] || `${core} Industries`,
+    co8_name: players[7] || `${core} Enterprises`,
+    co9_name: players[8] || `${core} Group`,
+    co10_name: players[9] || `${core} Partners`,
+    co1_segment_1_name: `${core} Primary Operations`,
+    co1_segment_2_name: `${core} Secondary Operations`,
+    segment5_marketshare1: `Sub-Segment A`,
+    segment5_marketshare2: `Sub-Segment B`,
+    segment5_marketshare3: `Sub-Segment C`,
+    segment5_marketshare4: `Sub-Segment D`,
+    segment6_marketshare1: `Sub-Segment A`,
+    segment6_marketshare2: `Sub-Segment B`,
+    segment6_marketshare3: `Sub-Segment C`,
+    segment6_marketshare4: `Sub-Segment D`,
+    seg4_name: `${core} Category 4`,
+    seg4_sub1: `Sub-Segment A`,
+    seg4_sub2: `Sub-Segment B`,
+    seg4_sub3: `Sub-Segment C`,
+    seg5_name: `${core} Category 5`,
+    seg5_sub1: `Sub-Segment A`,
+    seg5_sub2: `Sub-Segment B`,
+    seg5_sub3: `Sub-Segment C`,
+    seg6_name: `${core} Category 6`,
+    seg6_sub1: `Sub-Segment A`,
+    seg6_sub2: `Sub-Segment B`,
+    seg6_sub3: `Sub-Segment C`,
+    ch4_custom_subsection_4_1_title: `${core} Custom Requirement Analysis`,
   };
 }
 
@@ -693,9 +697,12 @@ function parseJsonResponse(contentStr) {
   let jsonStr = contentStr.trim();
   if (jsonStr.includes('```')) {
     const parts = jsonStr.split('```');
-    for (const part of parts) {
-      const trimmed = part.trim();
-      if (trimmed.startsWith('{') || trimmed.includes('{')) {
+    for (let part of parts) {
+      let trimmed = part.trim();
+      if (trimmed.toLowerCase().startsWith('json')) {
+        trimmed = trimmed.substring(4).trim();
+      }
+      if (trimmed.includes('{')) {
         jsonStr = trimmed;
         break;
       }
@@ -781,8 +788,8 @@ exports.handler = async (event, context) => {
 
     if (use_api !== false && keyToUse) {
       const MAX_RETRIES = 2;
-      const RETRY_DELAY = 500;
-      const TIMEOUT_MS = 8000;
+      const RETRY_DELAY = 1000;
+      const TIMEOUT_MS = 22000;
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         const controller = new AbortController();
