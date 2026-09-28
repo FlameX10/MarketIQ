@@ -97,49 +97,49 @@ function getFallbackContent(marketName, marketInput) {
     : [];
 
   return {
-    type_segment_1: `${core} Segment A`,
-    type_segment_2: `${core} Segment B`,
-    type_segment_3: `${core} Segment C`,
-    tech_segment_1: `${core} Tech A`,
-    tech_segment_2: `${core} Tech B`,
-    tech_segment_3: `${core} Tech C`,
-    app_segment_1: `${core} App A`,
-    app_segment_2: `${core} App B`,
-    app_segment_3: `${core} App C`,
-    app_segment_4: `${core} App D`,
-    co1_name: players[0] || `${core} Leader`,
-    co2_name: players[1] || `${core} Global Corp`,
-    co3_name: players[2] || `${core} Solutions Inc`,
-    co4_name: players[3] || `${core} Technologies`,
-    co5_name: players[4] || `${core} Systems`,
+    type_segment_1: `${core} Category A`,
+    type_segment_2: `${core} Category B`,
+    type_segment_3: `${core} Category C`,
+    tech_segment_1: `${core} Technology A`,
+    tech_segment_2: `${core} Technology B`,
+    tech_segment_3: `${core} Technology C`,
+    app_segment_1: `${core} Application A`,
+    app_segment_2: `${core} Application B`,
+    app_segment_3: `${core} Application C`,
+    app_segment_4: `${core} Application D`,
+    co1_name: players[0] || `${core} Global Corp`,
+    co2_name: players[1] || `${core} Solutions Ltd`,
+    co3_name: players[2] || `${core} Technologies Inc`,
+    co4_name: players[3] || `${core} Systems`,
+    co5_name: players[4] || `${core} Industries`,
     co6_name: players[5] || `${core} International`,
-    co7_name: players[6] || `${core} Industries`,
-    co8_name: players[7] || `${core} Enterprises`,
-    co9_name: players[8] || `${core} Group`,
+    co7_name: players[6] || `${core} Enterprises`,
+    co8_name: players[7] || `${core} Group`,
+    co9_name: players[8] || `${core} Holdings`,
     co10_name: players[9] || `${core} Partners`,
-    co1_segment_1_name: `${core} Primary Operations`,
-    co1_segment_2_name: `${core} Secondary Operations`,
-    segment5_marketshare1: `Sub-Segment A`,
-    segment5_marketshare2: `Sub-Segment B`,
-    segment5_marketshare3: `Sub-Segment C`,
-    segment5_marketshare4: `Sub-Segment D`,
-    segment6_marketshare1: `Sub-Segment A`,
-    segment6_marketshare2: `Sub-Segment B`,
-    segment6_marketshare3: `Sub-Segment C`,
-    segment6_marketshare4: `Sub-Segment D`,
-    seg4_name: `${core} Category 4`,
-    seg4_sub1: `Sub-Segment A`,
-    seg4_sub2: `Sub-Segment B`,
-    seg4_sub3: `Sub-Segment C`,
-    seg5_name: `${core} Category 5`,
-    seg5_sub1: `Sub-Segment A`,
-    seg5_sub2: `Sub-Segment B`,
-    seg5_sub3: `Sub-Segment C`,
-    seg6_name: `${core} Category 6`,
-    seg6_sub1: `Sub-Segment A`,
-    seg6_sub2: `Sub-Segment B`,
-    seg6_sub3: `Sub-Segment C`,
-    ch4_custom_subsection_4_1_title: `${core} Custom Requirement Analysis`,
+    co1_segment_1_name: `${core} Main Business`,
+    co1_segment_2_name: `${core} Auxiliary Business`,
+    segment5_marketshare1: `Primary Market Share`,
+    segment5_marketshare2: `Secondary Market Share`,
+    segment5_marketshare3: `Tertiary Market Share`,
+    segment5_marketshare4: `Other Market Share`,
+    segment6_marketshare1: `Primary Channel`,
+    segment6_marketshare2: `Secondary Channel`,
+    segment6_marketshare3: `Tertiary Channel`,
+    segment6_marketshare4: `Direct Channel`,
+    seg4_name: `${core} Market Dimension 4`,
+    seg4_sub1: `Primary Division`,
+    seg4_sub2: `Secondary Division`,
+    seg4_sub3: `Tertiary Division`,
+    seg5_name: `${core} Market Dimension 5`,
+    seg5_sub1: `Primary Sector`,
+    seg5_sub2: `Secondary Sector`,
+    seg5_sub3: `Tertiary Sector`,
+    seg6_name: `${core} Market Dimension 6`,
+    seg6_sub1: `Primary Unit`,
+    seg6_sub2: `Secondary Unit`,
+    seg6_sub3: `Tertiary Unit`,
+    ch4_custom_subsection_4_1_title: `${core} Strategic Analysis`,
   };
 }
 
@@ -147,7 +147,7 @@ function validatePayload(payloadDict) {
   const genericPatterns = [
     [/\b(Type|Tech|App)\s+\d+\b/i, 'Generic segment placeholder (e.g. Type 1, Tech 2, App 3)'],
     [/\bSegment\s+[456]\b/i, 'Generic dimension name (e.g. Segment 4, Segment 5, Segment 6)'],
-    [/\bSub-Segment\s*\d*\b/i, 'Generic sub-segment label'],
+    [/\bSub-Segment\s*\d+\b/i, 'Generic sub-segment label'],
     [/\bClient Requirement\s*\d*(\.\d+)?\b/i, 'Generic client requirement title'],
     [/\bFEATURED COMPANY\b/i, 'Generic company placeholder'],
     [/\bCompetitor\s+\d+\b/i, 'Generic competitor placeholder'],
@@ -395,24 +395,20 @@ function buildPayload(aiContent, marketInput) {
   }
 
   function getSub(aiKey, segObj, idx, fallback) {
+    if (segObj && segObj.sub_segments && segObj.sub_segments.length > idx && String(segObj.sub_segments[idx]).trim()) {
+      console.log(`[buildPayload] Using segObj.sub_segments[${idx}] for ${aiKey}: "${segObj.sub_segments[idx]}"`);
+      return String(segObj.sub_segments[idx]).trim();
+    }
     if (aiKey && ai[aiKey]) {
       const aiVal = String(ai[aiKey]).trim();
-      const isGeneric = /type [123]|tech [123]|app [1234]/i.test(aiVal);
+      const isGeneric = /type [123]|tech [123]|app [1234]|sub-segment \d*/i.test(aiVal);
       if (aiVal && !isGeneric) {
         console.log(`[buildPayload] Using AI value for ${aiKey}: "${aiVal}"`);
         return aiVal;
       }
-      if (aiVal && isGeneric && !segObj) {
-        console.log(`[buildPayload] AI value generic, no segObj, using fallback for ${aiKey}: "${fallback}"`);
-        return fallback;
-      }
-      console.log(`[buildPayload] AI value generic (${aiVal}) for ${aiKey}, falling back to segObj`);
+      console.log(`[buildPayload] AI value generic (${aiVal}) for ${aiKey}, using fallback`);
     } else {
-      console.log(`[buildPayload] No AI content for ${aiKey}, using segObj or fallback`);
-    }
-    if (segObj && segObj.sub_segments && segObj.sub_segments.length > idx) {
-      console.log(`[buildPayload] Using segObj.sub_segments[${idx}] for ${aiKey}: "${segObj.sub_segments[idx]}"`);
-      return segObj.sub_segments[idx];
+      console.log(`[buildPayload] No AI content for ${aiKey}, using fallback`);
     }
     console.log(`[buildPayload] Using fallback for ${aiKey}: "${fallback}"`);
     return fallback;
