@@ -129,7 +129,7 @@ class ReportGeneratorApp:
                 "model": "nvidia/nemotron-3-super-120b-a12b:free",
                 "cache_ttl_hours": 24,
                 "max_retries": 3,
-                "template_file": "templates/master_template_v1.docx",
+                "template_file": "market_report_template_v2.docx",
             }
 
     def setup_ui(self):
@@ -404,7 +404,7 @@ class ReportGeneratorApp:
             output_json = os.path.join("output", f"report_{safe_name}_{timestamp}.json")
 
             template_path = self.config.get(
-                "template_file", "templates/master_template_v1.docx"
+                "template_file", "market_report_template_v2.docx"
             )
             if not os.path.isabs(template_path):
                 template_path = os.path.join(os.path.dirname(__file__), template_path)

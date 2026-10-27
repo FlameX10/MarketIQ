@@ -223,7 +223,7 @@ def main():
     os.makedirs("output", exist_ok=True)
 
     # Render DOCX
-    template_path = config.get("template_file", "templates/master_template_v1.docx")
+    template_path = config.get("template_file", "market_report_template_v2.docx")
     if not os.path.isabs(template_path):
         template_path = os.path.join(os.path.dirname(__file__), template_path)
 

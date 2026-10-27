@@ -10,7 +10,7 @@ function loadConfig() {
     return JSON.parse(fs.readFileSync(configPath, 'utf8'));
   }
   return {
-    template_file: 'full_market_report_template_updated.docx',
+    template_file: 'market_report_template_v2.docx',
     model: 'nvidia/nemotron-3-nano-30b-a3b:free',
     cache_ttl_hours: 24,
   };
@@ -849,12 +849,12 @@ exports.handler = async (event, context) => {
       console.warn('Payload validation warnings/errors:', validation.errors);
     }
 
-    let templatePath = path.join(rootDir, config.template_file || 'full_market_report_template_updated.docx');
+    let templatePath = path.join(rootDir, config.template_file || 'market_report_template_v2.docx');
     if (!fs.existsSync(templatePath)) {
-      templatePath = path.join(rootDir, 'templates', 'master_template_v1.docx');
+      templatePath = path.join(rootDir, 'market_report_template_v2.docx');
     }
     if (!fs.existsSync(templatePath)) {
-      templatePath = path.join(rootDir, 'full_market_report_template_updated.docx');
+      templatePath = path.join(rootDir, 'market_report_template_v2.docx');
     }
 
     const templateBuffer = fs.readFileSync(templatePath);

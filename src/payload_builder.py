@@ -1,6 +1,6 @@
 """
 Payload builder for the updated full 16-chapter market report template.
-Maps ai_content + market_input to the 64 placeholders in full_market_report_template_updated.docx.
+Maps ai_content + market_input to the 46 placeholders in market_report_template_v2.docx.
 """
 
 from typing import Dict, Any, Optional

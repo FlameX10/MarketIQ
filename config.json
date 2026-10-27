@@ -5,5 +5,5 @@
   "max_retries": 3,
   "retry_delay": 2,
   "output_format": "docx+json",
-  "template_file": "full_market_report_template_updated.docx"
+  "template_file": "market_report_template_v2.docx"
 }
