@@ -6,6 +6,7 @@ Using CustomTkinter for modern UI
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import threading
+import webbrowser
 import os
 import sys
 from datetime import datetime
@@ -19,7 +20,22 @@ from src.renderer import render_report
 
 # Configure CustomTkinter appearance
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+ctk.set_default_color_theme("dark-blue")
+
+# ── Design Tokens ──────────────────────────────────────────────────────────────
+BG_APP        = "#0D1117"   # Window background
+BG_CARD       = "#161B2E"   # Card / panel fill
+BORDER_CARD   = "#2D3561"   # Card border
+ACCENT        = "#6C63FF"   # Primary accent (electric indigo)
+ACCENT_HOVER  = "#574FD6"   # Accent hover
+BTN_SEC       = "#1E2A4A"   # Secondary button fill
+BTN_SEC_HOVER = "#2D3D5C"   # Secondary button hover
+SUCCESS       = "#00D48B"   # Success / active green
+ERROR         = "#FF4D6D"   # Error red
+RUNNING       = "#6C63FF"   # Running state (same as accent)
+TEXT_PRIMARY  = "#F0F4FF"   # Primary text
+TEXT_SECONDARY= "#8892A4"   # Muted / subtitle text
+TEXT_TITLE    = "#A89CFF"   # Section header tint
 
 
 class ProgressTracker:
@@ -33,10 +49,13 @@ class ProgressTracker:
     def add_stage(self, name, description):
         """Add a new stage to track."""
         frame = ctk.CTkFrame(self.stages_frame, fg_color="transparent")
-        frame.pack(fill="x", pady=5, padx=10)
+        frame.pack(fill="x", pady=6, padx=10)
 
         # Icon label
-        icon_label = ctk.CTkLabel(frame, text="○", font=ctk.CTkFont(size=16), width=30)
+        icon_label = ctk.CTkLabel(
+            frame, text="○", font=ctk.CTkFont(size=16), width=30,
+            text_color="#4A5568"
+        )
         icon_label.pack(side="left", padx=(0, 10))
 
         # Stage info
@@ -44,7 +63,10 @@ class ProgressTracker:
         info_frame.pack(side="left", fill="x", expand=True)
 
         name_label = ctk.CTkLabel(
-            info_frame, text=name, font=ctk.CTkFont(size=12, weight="bold"), anchor="w"
+            info_frame, text=name,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=TEXT_PRIMARY,
+            anchor="w",
         )
         name_label.pack(fill="x")
 
@@ -52,7 +74,7 @@ class ProgressTracker:
             info_frame,
             text=description,
             font=ctk.CTkFont(size=10),
-            text_color=("gray60"),
+            text_color=TEXT_SECONDARY,
             anchor="w",
         )
         desc_label.pack(fill="x")
@@ -75,17 +97,17 @@ class ProgressTracker:
         stage["status"] = status
 
         status_config = {
-            "pending": ("○", "gray50", "gray40"),
-            "running": ("◐", "#00B4D8", "gray60"),
-            "success": ("✓", "#00E676", "#00E676"),
-            "error": ("✗", "#FF5252", "#FF5252"),
+            "pending": ("○", "#4A5568",  "#4A5568"),
+            "running": ("◉", RUNNING,    TEXT_SECONDARY),
+            "success": ("✓", SUCCESS,    SUCCESS),
+            "error":   ("✗", ERROR,      ERROR),
         }
 
         icon, icon_color, desc_color = status_config.get(
             status, status_config["pending"]
         )
         stage["icon"].configure(text=icon, text_color=icon_color)
-        stage["name_label"].configure(text_color=(icon_color))
+        stage["name_label"].configure(text_color=icon_color if status != "pending" else TEXT_PRIMARY)
         if message:
             stage["desc_label"].configure(text=message, text_color=desc_color)
 
@@ -102,8 +124,10 @@ class ReportGeneratorApp:
 
     def __init__(self):
         self.root = ctk.CTk()
-        self.root.title("Market Report Generator")
-        self.root.geometry("900x700")
+        self.root.title("MarketIQ — Market Report Generator")
+        self.root.geometry("960x720")
+        self.root.minsize(860, 660)
+        self.root.configure(fg_color=BG_APP)
 
         # Variables
         self.input_file = None
@@ -137,47 +161,94 @@ class ReportGeneratorApp:
 
         # Main container
         main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        main_frame.pack(fill="both", expand=True, padx=24, pady=20)
 
-        # Title
-        title_label = ctk.CTkLabel(
-            main_frame,
-            text="Market Report Generator",
-            font=ctk.CTkFont(size=28, weight="bold"),
-            text_color="#00B4D8",
+        # ── Branded Header ─────────────────────────────────────────────────────
+        header_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 4))
+
+        brand_dot = ctk.CTkLabel(
+            header_frame,
+            text="●",
+            font=ctk.CTkFont(size=20),
+            text_color=ACCENT,
+            width=28,
         )
-        title_label.pack(pady=(0, 20))
+        brand_dot.pack(side="left", padx=(0, 8))
 
-        # Subtitle
+        title_label = ctk.CTkLabel(
+            header_frame,
+            text="MarketIQ",
+            font=ctk.CTkFont(size=30, weight="bold"),
+            text_color=TEXT_PRIMARY,
+        )
+        title_label.pack(side="left")
+
+        # Logicawork branding — right side of header (clickable)
+        logicawork_label = ctk.CTkLabel(
+            header_frame,
+            text="Powered by  Logicawork ↗",
+            font=ctk.CTkFont(size=11),
+            text_color=TEXT_SECONDARY,
+            cursor="hand2",
+        )
+        logicawork_label.pack(side="right", padx=(0, 4))
+        logicawork_label.bind(
+            "<Button-1>",
+            lambda e: webbrowser.open("https://logicawork.com/")
+        )
+        logicawork_label.bind(
+            "<Enter>",
+            lambda e: logicawork_label.configure(text_color=ACCENT)
+        )
+        logicawork_label.bind(
+            "<Leave>",
+            lambda e: logicawork_label.configure(text_color=TEXT_SECONDARY)
+        )
+
+        # Subtitle below header
         subtitle = ctk.CTkLabel(
             main_frame,
             text="AI-Powered Market Intelligence Report Generation",
-            font=ctk.CTkFont(size=14),
-            text_color=("gray60"),
+            font=ctk.CTkFont(size=13),
+            text_color=TEXT_SECONDARY,
         )
-        subtitle.pack(pady=(0, 30))
+        subtitle.pack(anchor="w", pady=(0, 4))
 
-        # File selection frame
-        file_frame = ctk.CTkFrame(main_frame, fg_color=("gray20", "gray10"))
-        file_frame.pack(fill="x", pady=(0, 20))
+        # Thin divider line
+        divider = ctk.CTkFrame(main_frame, height=1, fg_color=BORDER_CARD)
+        divider.pack(fill="x", pady=(0, 18))
+
+        # ── File Selection Card ────────────────────────────────────────────────
+        file_frame = ctk.CTkFrame(
+            main_frame,
+            fg_color=BG_CARD,
+            border_width=1,
+            border_color=BORDER_CARD,
+            corner_radius=12,
+        )
+        file_frame.pack(fill="x", pady=(0, 16))
 
         file_inner = ctk.CTkFrame(file_frame, fg_color="transparent")
-        file_inner.pack(pady=15, padx=15, fill="x")
+        file_inner.pack(pady=16, padx=18, fill="x")
 
-        # Input file section
+        # Section label
         input_label = ctk.CTkLabel(
-            file_inner, text="Input DOCX File", font=ctk.CTkFont(size=14, weight="bold")
+            file_inner,
+            text="Input DOCX File",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=TEXT_TITLE,
         )
-        input_label.pack(anchor="w", pady=(0, 5))
+        input_label.pack(anchor="w", pady=(0, 8))
 
         input_path_frame = ctk.CTkFrame(file_inner, fg_color="transparent")
-        input_path_frame.pack(fill="x", pady=(0, 10))
+        input_path_frame.pack(fill="x", pady=(0, 12))
 
         self.input_path_label = ctk.CTkLabel(
             input_path_frame,
             text="No file selected",
             font=ctk.CTkFont(size=11),
-            text_color=("gray60"),
+            text_color=TEXT_SECONDARY,
             anchor="w",
         )
         self.input_path_label.pack(side="left", fill="x", expand=True)
@@ -187,39 +258,56 @@ class ReportGeneratorApp:
             text="Browse",
             command=self.browse_input,
             width=100,
-            fg_color="#1A3A5C",
+            fg_color=BTN_SEC,
+            hover_color=BTN_SEC_HOVER,
+            border_width=1,
+            border_color=BORDER_CARD,
+            corner_radius=8,
         )
         browse_btn.pack(side="right", padx=(10, 0))
 
         # Generate button
         self.generate_btn = ctk.CTkButton(
             file_inner,
-            text="Generate Report",
+            text="⚡  Generate Report",
             command=self.start_generation,
-            height=40,
+            height=44,
             font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color="#00B4D8",
-            hover_color="#0096B7",
+            fg_color=ACCENT,
+            hover_color=ACCENT_HOVER,
+            corner_radius=10,
         )
-        self.generate_btn.pack(fill="x", pady=(10, 0))
+        self.generate_btn.pack(fill="x", pady=(0, 0))
 
-        # Progress section
-        progress_frame = ctk.CTkFrame(main_frame, fg_color=("gray20", "gray10"))
-        progress_frame.pack(fill="both", expand=True, pady=(0, 20))
+        # ── Progress Card ──────────────────────────────────────────────────────
+        progress_frame = ctk.CTkFrame(
+            main_frame,
+            fg_color=BG_CARD,
+            border_width=1,
+            border_color=BORDER_CARD,
+            corner_radius=12,
+        )
+        progress_frame.pack(fill="both", expand=True, pady=(0, 16))
 
         progress_inner = ctk.CTkFrame(progress_frame, fg_color="transparent")
-        progress_inner.pack(pady=15, padx=15, fill="both", expand=True)
+        progress_inner.pack(pady=16, padx=18, fill="both", expand=True)
 
         progress_title = ctk.CTkLabel(
             progress_inner,
             text="Generation Progress",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=TEXT_TITLE,
         )
         progress_title.pack(anchor="w", pady=(0, 10))
 
         # Scrollable progress stages
         stages_scroll = ctk.CTkScrollableFrame(
-            progress_inner, fg_color="transparent", height=300
+            progress_inner,
+            fg_color=BG_APP,
+            scrollbar_button_color=BORDER_CARD,
+            scrollbar_button_hover_color=ACCENT,
+            height=280,
+            corner_radius=8,
         )
         stages_scroll.pack(fill="both", expand=True)
 
@@ -227,26 +315,35 @@ class ReportGeneratorApp:
 
         # Define stages
         self.stages = [
-            ("parsing", "Parsing Input DOCX", "Extracting market name and data..."),
-            ("cache", "Checking Cache", "Looking for cached content..."),
-            ("generating", "Generating Content", "AI is creating report content..."),
-            ("building", "Building Payload", "Preparing data for rendering..."),
-            ("rendering", "Rendering DOCX", "Creating final report document..."),
-            ("saving", "Saving Output", "Writing files to disk..."),
+            ("parsing",    "Parsing Input DOCX",    "Extracting market name and data..."),
+            ("cache",      "Checking Cache",         "Looking for cached content..."),
+            ("generating", "Generating Content",     "AI is creating report content..."),
+            ("building",   "Building Payload",       "Preparing data for rendering..."),
+            ("rendering",  "Rendering DOCX",         "Creating final report document..."),
+            ("saving",     "Saving Output",          "Writing files to disk..."),
         ]
 
         for stage_id, name, desc in self.stages:
             self.progress_tracker.add_stage(stage_id, desc)
 
-        # Output section
-        output_frame = ctk.CTkFrame(main_frame, fg_color=("gray20", "gray10"))
+        # ── Output Card ────────────────────────────────────────────────────────
+        output_frame = ctk.CTkFrame(
+            main_frame,
+            fg_color=BG_CARD,
+            border_width=1,
+            border_color=BORDER_CARD,
+            corner_radius=12,
+        )
         output_frame.pack(fill="x")
 
         output_inner = ctk.CTkFrame(output_frame, fg_color="transparent")
-        output_inner.pack(pady=15, padx=15, fill="x")
+        output_inner.pack(pady=16, padx=18, fill="x")
 
         output_title = ctk.CTkLabel(
-            output_inner, text="Output", font=ctk.CTkFont(size=14, weight="bold")
+            output_inner,
+            text="Output",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=TEXT_TITLE,
         )
         output_title.pack(anchor="w", pady=(0, 10))
 
@@ -260,7 +357,11 @@ class ReportGeneratorApp:
             command=self.open_report,
             width=140,
             state="disabled",
-            fg_color="#1A3A5C",
+            fg_color=BTN_SEC,
+            hover_color=BTN_SEC_HOVER,
+            border_width=1,
+            border_color=BORDER_CARD,
+            corner_radius=8,
         )
         self.open_btn.pack(side="left", padx=(0, 10))
 
@@ -270,7 +371,11 @@ class ReportGeneratorApp:
             command=self.download_report,
             width=140,
             state="disabled",
-            fg_color="#1A3A5C",
+            fg_color=BTN_SEC,
+            hover_color=BTN_SEC_HOVER,
+            border_width=1,
+            border_color=BORDER_CARD,
+            corner_radius=8,
         )
         self.download_btn.pack(side="left")
 
@@ -278,7 +383,7 @@ class ReportGeneratorApp:
             output_inner,
             text="No output generated yet",
             font=ctk.CTkFont(size=10),
-            text_color=("gray60"),
+            text_color=TEXT_SECONDARY,
             anchor="w",
         )
         self.output_path_label.pack(anchor="w", pady=(10, 0))
@@ -292,7 +397,7 @@ class ReportGeneratorApp:
         if filename:
             self.input_file = filename
             self.input_path_label.configure(
-                text=os.path.basename(filename), text_color=("#00E676")
+                text=os.path.basename(filename), text_color=SUCCESS
             )
 
     def start_generation(self):
@@ -305,7 +410,7 @@ class ReportGeneratorApp:
         self.progress_tracker.reset()
         self.open_btn.configure(state="disabled")
         self.download_btn.configure(state="disabled")
-        self.output_path_label.configure(text="Generating...")
+        self.output_path_label.configure(text="Generating...", text_color=TEXT_SECONDARY)
 
         # Disable generate button
         self.generate_btn.configure(state="disabled", text="Generating...")
@@ -444,8 +549,8 @@ class ReportGeneratorApp:
                 self.update_progress(
                     "saving", "success", f"Saved: {os.path.basename(output_json)}"
                 )
-                
-                # Post‑generation sanity check: ensure all placeholders were replaced
+
+                # Post-generation sanity check: ensure all placeholders were replaced
                 try:
                     from docx import Document
                     doc = Document(output_docx)
@@ -456,7 +561,10 @@ class ReportGeneratorApp:
                         if any(ph in p.text for p in doc.paragraphs):
                             missing.append(ph)
                     if missing:
-                        self.update_progress("rendering", "error", f"Missing placeholders after render: {', '.join(missing)}")
+                        self.update_progress(
+                            "rendering", "error",
+                            f"Missing placeholders after render: {', '.join(missing)}"
+                        )
                         self.generation_complete(False)
                         return
                 except Exception as e:
@@ -488,18 +596,28 @@ class ReportGeneratorApp:
 
     def _complete_ui(self, success):
         """Update UI on completion."""
-        self.generate_btn.configure(state="normal", text="Generate Report")
+        self.generate_btn.configure(state="normal", text="⚡  Generate Report")
 
         if success:
-            self.open_btn.configure(state="normal", fg_color="#00B4D8")
-            self.download_btn.configure(state="normal", fg_color="#00B4D8")
+            self.open_btn.configure(
+                state="normal",
+                fg_color=ACCENT,
+                hover_color=ACCENT_HOVER,
+                border_color=ACCENT,
+            )
+            self.download_btn.configure(
+                state="normal",
+                fg_color=ACCENT,
+                hover_color=ACCENT_HOVER,
+                border_color=ACCENT,
+            )
             self.output_path_label.configure(
-                text=f"Output: {self.output_file}", text_color=("#00E676")
+                text=f"Output: {self.output_file}", text_color=SUCCESS
             )
             messagebox.showinfo("Success", "Report generated successfully!")
         else:
             self.output_path_label.configure(
-                text="Generation failed - check errors above", text_color=("#FF5252")
+                text="Generation failed — check errors above", text_color=ERROR
             )
 
     def open_report(self):
