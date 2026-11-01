@@ -21,6 +21,17 @@ def build_payload(
     def val(key: str, fallback: str = "") -> str:
         return get(ai_content, key, fallback)
 
+    players = market_input.parsed_players  # real names from input DOCX
+
+    def player(idx: int, ai_key: str, max_len: int = 30) -> str:
+        """Return AI-provided name, then parsed player, then generic fallback."""
+        ai_val = ai_content.get(ai_key, "")
+        if ai_val and str(ai_val).strip():
+            return str(ai_val).strip()
+        if idx < len(players) and players[idx]:
+            return players[idx][:max_len]
+        return f"Competitor {idx + 1}"
+
     payload: Dict[str, str] = {
         "{{market_name}}": market_input.market_name,
         "{{market_name_upper}}": market_input.market_name_upper,
@@ -31,26 +42,26 @@ def build_payload(
         "{{forecast_start_year}}": market_input.forecast_start_year,
         "{{forecast_end_year}}": market_input.forecast_end_year,
         "{{history_start_year}}": market_input.history_start_year,
-        "{{co1_name_upper}}": val("co1_name", "Featured Company").upper(),
-        "{{co2_name}}": val("co2_name", "Competitor 2"),
-        "{{co3_name}}": val("co3_name", "Competitor 3"),
-        "{{co4_name}}": val("co4_name", "Competitor 4"),
-        "{{co5_name}}": val("co5_name", "Competitor 5"),
-        "{{co6_name}}": val("co6_name", "Competitor 6"),
-        "{{co7_name}}": val("co7_name", "Competitor 7"),
-        "{{co8_name}}": val("co8_name", "Competitor 8"),
-        "{{co9_name}}": val("co9_name", "Competitor 9"),
-        "{{co10_name}}": val("co10_name", "Competitor 10"),
-        "{{CO1_NAME}}": val("co1_name", "Featured Company").upper(),
-        "{{CO2_NAME}}": val("co2_name", "Competitor 2").upper(),
-        "{{CO3_NAME}}": val("co3_name", "Competitor 3").upper(),
-        "{{CO4_NAME}}": val("co4_name", "Competitor 4").upper(),
-        "{{CO5_NAME}}": val("co5_name", "Competitor 5").upper(),
-        "{{CO6_NAME}}": val("co6_name", "Competitor 6").upper(),
-        "{{CO7_NAME}}": val("co7_name", "Competitor 7").upper(),
-        "{{CO8_NAME}}": val("co8_name", "Competitor 8").upper(),
-        "{{CO9_NAME}}": val("co9_name", "Competitor 9").upper(),
-        "{{CO10_NAME}}": val("co10_name", "Competitor 10").upper(),
+        "{{co1_name_upper}}": player(0, "co1_name", 20).upper(),
+        "{{co2_name}}": player(1, "co2_name", 20),
+        "{{co3_name}}": player(2, "co3_name", 20),
+        "{{co4_name}}": player(3, "co4_name", 30),
+        "{{co5_name}}": player(4, "co5_name", 15),
+        "{{co6_name}}": player(5, "co6_name", 15),
+        "{{co7_name}}": player(6, "co7_name", 20),
+        "{{co8_name}}": player(7, "co8_name", 15),
+        "{{co9_name}}": player(8, "co9_name", 15),
+        "{{co10_name}}": player(9, "co10_name", 15),
+        "{{CO1_NAME}}": player(0, "co1_name", 20).upper(),
+        "{{CO2_NAME}}": player(1, "co2_name", 20).upper(),
+        "{{CO3_NAME}}": player(2, "co3_name", 20).upper(),
+        "{{CO4_NAME}}": player(3, "co4_name", 30).upper(),
+        "{{CO5_NAME}}": player(4, "co5_name", 15).upper(),
+        "{{CO6_NAME}}": player(5, "co6_name", 15).upper(),
+        "{{CO7_NAME}}": player(6, "co7_name", 20).upper(),
+        "{{CO8_NAME}}": player(7, "co8_name", 15).upper(),
+        "{{CO9_NAME}}": player(8, "co9_name", 15).upper(),
+        "{{CO10_NAME}}": player(9, "co10_name", 15).upper(),
         "{{co1_seg1_name}}": val("co1_segment_1_name", f"{core} Segment 1"),
         "{{co1_seg2_name}}": val("co1_segment_2_name", f"{core} Segment 2"),
         "{{segment5_marketshare1}}": val("segment5_marketshare1", "Sub-Segment 1"),

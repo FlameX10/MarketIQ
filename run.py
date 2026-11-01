@@ -231,7 +231,11 @@ def main():
     adjust_cover = market_input.cover_title_truncated
 
     success = render_report(
-        template_path, placeholder_dict, output_docx, adjust_cover_title=adjust_cover
+        template_path,
+        placeholder_dict,
+        output_docx,
+        adjust_cover_title=adjust_cover,
+        players=market_input.parsed_players,  # inject competitor list into Section 12.1
     )
 
     if success:

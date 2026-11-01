@@ -88,6 +88,7 @@ class DOCXRenderer:
         placeholder_dict: Dict[str, str],
         output_path: str,
         adjust_cover_title: bool = False,
+        players: Optional[List[str]] = None,
     ) -> bool:
         """
         Render DOCX with replaced placeholders.
@@ -96,6 +97,7 @@ class DOCXRenderer:
             placeholder_dict: Dict mapping {{placeholder}} to replacement values
             output_path: Path for output DOCX file
             adjust_cover_title: If True, adjust font size for long titles on cover page
+            players: Optional list of competitor/key player names for Section 12.1
 
         Returns:
             True if successful, False otherwise
@@ -161,6 +163,10 @@ class DOCXRenderer:
             if adjust_cover_title:
                 print("  Adjusting cover page title font size...")
                 self._adjust_cover_title_font(temp_dir)
+
+            # Inject competitor list below Section 12.1 chart
+            if players:
+                self._inject_competitor_list(temp_dir, players)
 
             self._pack_docx(temp_dir, output_path)
 
@@ -276,6 +282,102 @@ class DOCXRenderer:
         finally:
             shutil.rmtree(temp_dir_xlsx, ignore_errors=True)
 
+    def _inject_competitor_list(self, extract_dir: str, players: List[str]):
+        """
+        Inject competitor names as a formatted text list into the document XML,
+        directly after the Section 12.1 market share chart image (image25.png).
+
+        This finds the <w:drawing> referencing rId32 (image25.png) and inserts
+        styled Word XML paragraphs immediately after its parent <w:p>.
+        """
+        document_path = os.path.join(extract_dir, "word", "document.xml")
+        if not os.path.exists(document_path):
+            return
+
+        with open(document_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Find the paragraph that contains the market share chart image
+        # The chart is referenced by rId32 -> media/image25.png
+        chart_ref_pattern = re.compile(
+            r"(<w:p\b[^>]*>(?:(?!</w:p>).)*?r:embed=\"rId32\"(?:(?!</w:p>).)*?</w:p>)",
+            re.DOTALL,
+        )
+        match = chart_ref_pattern.search(content)
+
+        if not match:
+            # Fallback: search for the 'Market Share Analysis' heading paragraph
+            # and insert after the next paragraph (which is the chart paragraph)
+            fallback_pattern = re.compile(
+                r"(Market Share Analysis(?:(?!</w:p>).)*?</w:p>)",
+                re.DOTALL,
+            )
+            match = fallback_pattern.search(content)
+            if not match:
+                print("  Warning: Could not locate Section 12.1 chart position — competitor list not injected")
+                return
+
+        # Build the XML block to insert after the chart paragraph
+        # Use a heading-style paragraph for the label, then one paragraph per company
+        NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+
+        def make_company_paragraph(name: str, index: int) -> str:
+            """Create a styled <w:p> paragraph for a single company name."""
+            color = "1B3A6E" if index % 2 == 0 else "2B5BA8"
+            escaped_name = self.escape_xml(name.upper())
+            return (
+                f'<w:p>'
+                f'<w:pPr>'
+                f'<w:pStyle w:val="Normal"/>'
+                f'<w:ind w:left="360"/>'
+                f'<w:spacing w:before="40" w:after="40"/>'
+                f'</w:pPr>'
+                f'<w:r>'
+                f'<w:rPr>'
+                f'<w:color w:val="{color}"/>'
+                f'<w:sz w:val="18"/>'
+                f'<w:szCs w:val="18"/>'
+                f'</w:rPr>'
+                f'<w:t xml:space="preserve">\u25a0  {escaped_name}</w:t>'
+                f'</w:r>'
+                f'</w:p>'
+            )
+
+        # Header paragraph
+        header_para = (
+            '<w:p>'
+            '<w:pPr>'
+            '<w:pStyle w:val="Normal"/>'
+            '<w:spacing w:before="120" w:after="60"/>'
+            '</w:pPr>'
+            '<w:r>'
+            '<w:rPr>'
+            '<w:b/>'
+            '<w:color w:val="1B3A6E"/>'
+            '<w:sz w:val="20"/>'
+            '<w:szCs w:val="20"/>'
+            '</w:rPr>'
+            '<w:t>KEY MARKET PLAYERS (2024)</w:t>'
+            '</w:r>'
+            '</w:p>'
+        )
+
+        company_paras = "".join(
+            make_company_paragraph(name, i)
+            for i, name in enumerate(players[:10])
+        )
+
+        injection = header_para + company_paras
+
+        # Insert the block immediately after the chart paragraph
+        insert_after = match.group(0)
+        content = content.replace(insert_after, insert_after + injection, 1)
+
+        with open(document_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        print(f"  Injected competitor list ({len(players[:10])} companies) after Section 12.1 chart")
+
     def _adjust_cover_title_font(self, extract_dir: str):
         """
         Reduce font size in the cover page title area if title is long.
@@ -345,9 +447,10 @@ class DOCXRenderer:
         payload_dict: Dict[str, str],
         output_path: str,
         adjust_cover_title: bool = False,
+        players: Optional[List[str]] = None,
     ) -> bool:
         """Render DOCX from a flat dictionary of placeholder to value mappings."""
-        return self.render(payload_dict, output_path, adjust_cover_title)
+        return self.render(payload_dict, output_path, adjust_cover_title, players)
 
 
 def render_report(
@@ -355,10 +458,11 @@ def render_report(
     placeholder_dict: Dict[str, str],
     output_path: str,
     adjust_cover_title: bool = False,
+    players: Optional[List[str]] = None,
 ) -> bool:
     """Standalone function to render a DOCX report."""
     renderer = DOCXRenderer(template_path)
-    return renderer.render(placeholder_dict, output_path, adjust_cover_title)
+    return renderer.render(placeholder_dict, output_path, adjust_cover_title, players)
 
 
 if __name__ == "__main__":
